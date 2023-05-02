@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "760012649488",
+    "project_id": "zxcv-e1dd5",
+    "storage_bucket": "zxcv-e1dd5.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:760012649488:android:bb4c339c4017bfc484c695",
+        "android_client_info": {
+          "package_name": "com.example.backspace"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "760012649488-3erjv6b2rhgi863303fmse3jte6dppr7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.backspace",
+            "certificate_hash": "8fe0cc8555f9362cdd5c5d0f2fd4899fe2508a70"
+          }
+        },
+        {
+          "client_id": "760012649488-6tjoq9sbhbh76698hlmbejtdsq81b02c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCRpZGI6ZzaLU3lCLN62nmL-mhOAw1rwk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "760012649488-5m9n4tr5rafrotnppohjojst6ghldggc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "760012649488-0ctksqvqdtvg0qtr0fpmqu4016ncg7dm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.backspace"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:760012649488:android:dd926b7d28395a7c84c695",
+        "android_client_info": {
+          "package_name": "com.harshRajpurohit.we_chat"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "760012649488-6tjoq9sbhbh76698hlmbejtdsq81b02c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCRpZGI6ZzaLU3lCLN62nmL-mhOAw1rwk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "760012649488-5m9n4tr5rafrotnppohjojst6ghldggc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "760012649488-0ctksqvqdtvg0qtr0fpmqu4016ncg7dm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.backspace"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,15 @@
+carnegietechnologies.gallery_saver-jetified-window-java-1.0.0-beta04-0 C:\Users\Saurav\.gradle\caches\transforms-3\006d93cd422dbc43e89591147c2de572\transformed\jetified-window-java-1.0.0-beta04\res
+carnegietechnologies.gallery_saver-core-1.6.0-1 C:\Users\Saurav\.gradle\caches\transforms-3\4ca28c4a71705f8a687c69dda140a277\transformed\core-1.6.0\res
+carnegietechnologies.gallery_saver-jetified-core-ktx-1.5.0-2 C:\Users\Saurav\.gradle\caches\transforms-3\56bbcae4ea3c9e12390b594b1ca6236b\transformed\jetified-core-ktx-1.5.0\res
+carnegietechnologies.gallery_saver-coordinatorlayout-1.0.0-3 C:\Users\Saurav\.gradle\caches\transforms-3\658c795313ef4882e96b91cbdc33f336\transformed\coordinatorlayout-1.0.0\res
+carnegietechnologies.gallery_saver-jetified-annotation-experimental-1.1.0-4 C:\Users\Saurav\.gradle\caches\transforms-3\8965c941cf4bee4d72541b965c7c9d39\transformed\jetified-annotation-experimental-1.1.0\res
+carnegietechnologies.gallery_saver-jetified-window-1.0.0-beta04-5 C:\Users\Saurav\.gradle\caches\transforms-3\dee59bb480020f42d53c2ea15e4501f7\transformed\jetified-window-1.0.0-beta04\res
+carnegietechnologies.gallery_saver-media-1.0.0-6 C:\Users\Saurav\.gradle\caches\transforms-3\f057e7418cf3ed9a7aa575bdc69ad668\transformed\media-1.0.0\res
+carnegietechnologies.gallery_saver-main-7 C:\Users\Saurav\AppData\Local\Pub\Cache\hosted\pub.dev\gallery_saver-2.3.2\android\src\main\res
+carnegietechnologies.gallery_saver-release-8 C:\Users\Saurav\AppData\Local\Pub\Cache\hosted\pub.dev\gallery_saver-2.3.2\android\src\release\res
+carnegietechnologies.gallery_saver-pngs-9 C:\Users\Saurav\Desktop\backspace\build\gallery_saver\generated\res\pngs\release
+carnegietechnologies.gallery_saver-resValues-10 C:\Users\Saurav\Desktop\backspace\build\gallery_saver\generated\res\resValues\release
+carnegietechnologies.gallery_saver-rs-11 C:\Users\Saurav\Desktop\backspace\build\gallery_saver\generated\res\rs\release
+carnegietechnologies.gallery_saver-mergeReleaseResources-12 C:\Users\Saurav\Desktop\backspace\build\gallery_saver\intermediates\incremental\release\mergeReleaseResources\merged.dir
+carnegietechnologies.gallery_saver-mergeReleaseResources-13 C:\Users\Saurav\Desktop\backspace\build\gallery_saver\intermediates\incremental\release\mergeReleaseResources\stripped.dir
+carnegietechnologies.gallery_saver-merged_res-14 C:\Users\Saurav\Desktop\backspace\build\gallery_saver\intermediates\merged_res\release
