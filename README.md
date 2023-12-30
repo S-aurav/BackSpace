@@ -11,10 +11,14 @@ An Android chat application made with Flutter and Firebase
 5. You can change your display name and profile picture as well
 6. Get notifications of new messages
 
-## How to use?
+## Getting Statrted
 
-1. Download the latest release
-2. Login through Google account
-3. Add new contact using email ID, and thats it!
+1. ### Clone the repository
+```
+ git clone https://github.com/S-aurav/BackSpace.git
+```
 
+2. ### Open the project in Android Studio
+3. ### Make sure you have Google Firebase account, and configure the database accordingly
+4. ### Build the app
 Enjoy! :)
