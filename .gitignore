@@ -1,0 +1,36 @@
+# Flutter build and cache
+.dart_tool/
+.pub-cache/
+.pub/
+build/
+
+# Node.js and Firebase Cloud Functions
+node_modules/
+functions/node_modules/
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# Environment and secrets
+.env
+*.env
+functions/.env
+
+# Android specific
+android/.gradle/
+android/local.properties
+android/captures/
+android/app/release/
+android/app/debug/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db

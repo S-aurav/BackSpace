@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -7,10 +8,11 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../api/apis.dart';
 import '../../helper/dialogs.dart';
+import '../../helper/theme_controller.dart';
 import '../../main.dart';
 import '../home_screen.dart';
 
-//login screen -- implements google sign in or sign up feature for app
+// Authentic iOS iMessage-styled Welcome & Sign In Screen
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,128 +20,271 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  bool _isAnimate = false;
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+  bool _isLoading = false;
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+    serverClientId: '760012649488-6tjoq9sbhbh76698hlmbejtdsq81b02c.apps.googleusercontent.com',
+  );
 
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
 
-    //for auto triggering animation
-    Future.delayed(const Duration(milliseconds: 500), () {
-      setState(() => _isAnimate = true);
-    });
+    _fadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOut,
+    );
+
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _animController.forward();
   }
 
-  // handles google login button click
-  _handleGoogleBtnClick() {
-    //for showing progress bar
-    Dialogs.showProgressBar(context);
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
 
-    _signInWithGoogle().then((user) async {
-      //for hiding progress bar
-      Navigator.pop(context);
+  // Handles Google sign-in flow
+  Future<void> _handleGoogleBtnClick() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
 
-      if (user != null) {
-        log('\nUser: ${user.user}');
-        log('\nUserAdditionalInfo: ${user.additionalUserInfo}');
-
-        if ((await APIs.userExists())) {
+    try {
+      final user = await _signInWithGoogle();
+      if (user != null && mounted) {
+        log('Signed in user: ${user.user?.uid}');
+        if (await APIs.userExists()) {
           Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
         } else {
-          await APIs.createUser().then((value) {
+          await APIs.createUser();
+          if (mounted) {
             Navigator.pushReplacement(
-                context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-          });
+              context,
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          }
         }
       }
-    });
+    } catch (e) {
+      log('Sign-in error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<UserCredential?> _signInWithGoogle() async {
     try {
-      await InternetAddress.lookup('google.com');
-      // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final result = await InternetAddress.lookup('google.com');
+      if (result.isEmpty) {
+        throw Exception('No internet response from google.com');
+      }
 
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication? googleAuth =
-          await googleUser?.authentication;
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null;
 
-      // Create a new credential
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      if (googleAuth.idToken == null && googleAuth.accessToken == null) {
+        throw Exception('Google auth tokens were not returned');
+      }
+
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth?.accessToken,
-        idToken: googleAuth?.idToken,
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
 
-      // Once signed in, return the UserCredential
       return await APIs.auth.signInWithCredential(credential);
-    } catch (e) {
-      log('\n_signInWithGoogle: $e');
-      Dialogs.showSnackbar(context, 'Something Went Wrong (Check Internet!)');
+    } catch (e, stackTrace) {
+      log('_signInWithGoogle error: $e\n$stackTrace');
+      if (mounted) {
+        Dialogs.showSnackbar(context, 'Google sign-in failed. Please try again.');
+      }
       return null;
     }
   }
 
-  //sign out function
-  // _signOut() async {
-  //   await FirebaseAuth.instance.signOut();
-  //   await GoogleSignIn().signOut();
-  // }
-
   @override
   Widget build(BuildContext context) {
-    //initializing media query (for getting device screen size)
-    // mq = MediaQuery.of(context).size;
+    mq = MediaQuery.of(context).size;
 
-    return Scaffold(
-      //app bar
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Welcome to BackSpace'),
-      ),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.themeMode,
+      builder: (context, mode, child) {
+        final isDark = mode == ThemeMode.dark;
 
-      //body
-      body: Stack(children: [
-        //app logo
-        AnimatedPositioned(
-            top: mq.height * .15,
-            right: _isAnimate ? mq.width * .25 : -mq.width * .5,
-            width: mq.width * .5,
-            duration: const Duration(seconds: 1),
-            child: Image.asset('images/icon.png')),
+        return Scaffold(
+          backgroundColor: ThemeController.bgColor,
+          body: SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: SlideTransition(
+                position: _slideAnim,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28.0),
+                  child: Column(
+                    children: [
+                      const Spacer(flex: 3),
 
-        //google login button
-        Positioned(
-            bottom: mq.height * .15,
-            left: mq.width * .05,
-            width: mq.width * .9,
-            height: mq.height * .06,
-            child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 223, 255, 187),
-                    shape: const StadiumBorder(),
-                    elevation: 1),
-                onPressed: () {
-                  _handleGoogleBtnClick();
-                },
+                      // Large App Icon with squircle corners & ambient glow
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(32),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF007AFF).withValues(alpha: isDark ? 0.35 : 0.2),
+                              blurRadius: 36,
+                              offset: const Offset(0, 14),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(32),
+                          child: Image.asset(
+                            'images/icon.png',
+                            width: 110,
+                            height: 110,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
-                //google icon
-                icon: Image.asset('images/google.png', height: mq.height * .03),
+                      // App Name
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Back',
+                              style: TextStyle(
+                                fontSize: 38,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -1.0,
+                                color: ThemeController.textColor,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: 'Space',
+                              style: TextStyle(
+                                fontSize: 38,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -1.0,
+                                color: Color(0xFF007AFF),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
 
-                //login with google label
-                label: RichText(
-                  text: const TextSpan(
-                      style: TextStyle(color: Colors.black, fontSize: 16),
-                      children: [
-                        TextSpan(text: 'Login with '),
-                        TextSpan(
-                            text: 'Google',
-                            style: TextStyle(fontWeight: FontWeight.w500)),
-                      ]),
-                ))),
-      ]),
+                      // Subtitle
+                      Text(
+                        'Simple. Private. High Quality.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.2,
+                          color: ThemeController.subtextColor,
+                        ),
+                      ),
+
+                      const Spacer(flex: 4),
+
+                      // Frosted Glass "Sign in with Google" Pill Button
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(28),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _isLoading ? null : _handleGoogleBtnClick,
+                              borderRadius: BorderRadius.circular(28),
+                              child: Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: ThemeController.cardColor.withValues(alpha: isDark ? 0.75 : 0.85),
+                                  borderRadius: BorderRadius.circular(28),
+                                  border: Border.all(
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.15)
+                                        : Colors.black.withValues(alpha: 0.08),
+                                    width: 0.8,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: _isLoading
+                                    ? const Center(
+                                        child: SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF007AFF)),
+                                          ),
+                                        ),
+                                      )
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Image.asset(
+                                            'images/google.png',
+                                            height: 22,
+                                            width: 22,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            'Sign in with Google',
+                                            style: TextStyle(
+                                              color: ThemeController.textColor,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              letterSpacing: -0.2,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

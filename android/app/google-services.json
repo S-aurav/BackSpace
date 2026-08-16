@@ -22,41 +22,13 @@
           }
         },
         {
-          "client_id": "760012649488-6tjoq9sbhbh76698hlmbejtdsq81b02c.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBCRpZGI6ZzaLU3lCLN62nmL-mhOAw1rwk"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "760012649488-5m9n4tr5rafrotnppohjojst6ghldggc.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "760012649488-0ctksqvqdtvg0qtr0fpmqu4016ncg7dm.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.backspace"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:760012649488:android:dd926b7d28395a7c84c695",
-        "android_client_info": {
-          "package_name": "com.harshRajpurohit.we_chat"
-        }
-      },
-      "oauth_client": [
+          "client_id": "760012649488-chqamhgg0n62moqdt02vsbmaqaq6ma6c.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.backspace",
+            "certificate_hash": "eb2ea9f80eb1a52ba26b11fda75321158c2a58e8"
+          }
+        },
         {
           "client_id": "760012649488-6tjoq9sbhbh76698hlmbejtdsq81b02c.apps.googleusercontent.com",
           "client_type": 3
@@ -71,7 +43,7 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "760012649488-5m9n4tr5rafrotnppohjojst6ghldggc.apps.googleusercontent.com",
+              "client_id": "760012649488-6tjoq9sbhbh76698hlmbejtdsq81b02c.apps.googleusercontent.com",
               "client_type": 3
             },
             {

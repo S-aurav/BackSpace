@@ -9,7 +9,13 @@ class ChatUser {
     required this.lastActive,
     required this.email,
     required this.pushToken,
-  });
+    Map<String, dynamic>? mutedUsers,
+    List<String>? blockedUsers,
+    List<String>? statusBlockedUsers,
+  })  : mutedUsers = mutedUsers ?? {},
+        blockedUsers = blockedUsers ?? [],
+        statusBlockedUsers = statusBlockedUsers ?? [];
+
   late String image;
   late String about;
   late String name;
@@ -19,6 +25,9 @@ class ChatUser {
   late String lastActive;
   late String email;
   late String pushToken;
+  Map<String, dynamic> mutedUsers = {};
+  List<String> blockedUsers = [];
+  List<String> statusBlockedUsers = [];
 
   ChatUser.fromJson(Map<String, dynamic> json) {
     image = json['image'] ?? '';
@@ -30,6 +39,9 @@ class ChatUser {
     lastActive = json['last_active'] ?? '';
     email = json['email'] ?? '';
     pushToken = json['push_token'] ?? '';
+    mutedUsers = Map<String, dynamic>.from(json['muted_users'] ?? {});
+    blockedUsers = List<String>.from(json['blocked_users'] ?? []);
+    statusBlockedUsers = List<String>.from(json['status_blocked_users'] ?? []);
   }
 
   Map<String, dynamic> toJson() {
@@ -43,6 +55,9 @@ class ChatUser {
     data['last_active'] = lastActive;
     data['email'] = email;
     data['push_token'] = pushToken;
+    data['muted_users'] = mutedUsers;
+    data['blocked_users'] = blockedUsers;
+    data['status_blocked_users'] = statusBlockedUsers;
     return data;
   }
 }

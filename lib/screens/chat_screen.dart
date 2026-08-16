@@ -1,17 +1,23 @@
 import 'dart:developer';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../api/apis.dart';
+import '../helper/cache_manager.dart';
+import '../helper/dialogs.dart';
 import '../helper/my_date_util.dart';
+import '../helper/theme_controller.dart';
 import '../main.dart';
 import '../models/chat_user.dart';
 import '../models/message.dart';
+import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/message_card.dart';
 import 'view_profile_screen.dart';
 
@@ -25,300 +31,605 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  //for storing all messages
   List<Message> _list = [];
-
-  //for handling message text changes
   final _textController = TextEditingController();
-
-  //showEmoji -- for storing value of showing or hiding emoji
-  //isUploading -- for checking if image is uploading or not?
+  final _scrollController = ScrollController();
+  final _focusNode = FocusNode();
+  final _hasTextNotifier = ValueNotifier<bool>(false);
   bool _showEmoji = false, _isUploading = false;
+
+  // Cache streams in initState to prevent re-creation on rebuild
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _messagesStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _userInfoStream;
+
+  // Cache safe area padding (doesn't change when keyboard opens)
+  double _safeTop = 0;
+  double _safeBottom = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    APIs.activeChatUserId = widget.user.id;
+
+    // Cache streams once — never recreated on keyboard open/close or setState
+    _messagesStream = APIs.getAllMessages(widget.user);
+    _userInfoStream = APIs.getUserInfo(widget.user);
+
+    _textController.addListener(() {
+      final hasText = _textController.text.trim().isNotEmpty;
+      if (_hasTextNotifier.value != hasText) {
+        _hasTextNotifier.value = hasText;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    if (APIs.activeChatUserId == widget.user.id) {
+      APIs.activeChatUserId = null;
+    }
+    _scrollController.dispose();
+    _focusNode.dispose();
+    _hasTextNotifier.dispose();
+    _textController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Cache safe area padding once (this doesn't change with keyboard)
+    final padding = MediaQuery.of(context).padding;
+    if (_safeTop == 0) _safeTop = padding.top;
+    if (_safeBottom == 0) _safeBottom = padding.bottom;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: SafeArea(
-        child: WillPopScope(
-          //if emojis are shown & back button is pressed then hide emojis
-          //or else simple close current screen on back button click
-          onWillPop: () {
-            if (_showEmoji) {
-              setState(() => _showEmoji = !_showEmoji);
-              return Future.value(false);
-            } else {
-              return Future.value(true);
-            }
+    final topPadding = _safeTop + 80.0;
+    final bottomListPadding = (_safeBottom > 0 ? _safeBottom : 10.0) + 64.0;
+
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.themeMode,
+      builder: (context, mode, child) {
+        return GestureDetector(
+          onTap: () {
+            _focusNode.unfocus();
+            if (_showEmoji) setState(() => _showEmoji = false);
           },
-          child: Scaffold(
-            //app bar
-            appBar: AppBar(
-              automaticallyImplyLeading: false,
-              flexibleSpace: _appBar(),
-            ),
+          child: WillPopScope(
+            onWillPop: () {
+              if (_showEmoji) {
+                setState(() => _showEmoji = false);
+                return Future.value(false);
+              } else {
+                return Future.value(true);
+              }
+            },
+            child: Scaffold(
+              backgroundColor: ThemeController.bgColor,
+              extendBodyBehindAppBar: true,
+              extendBody: true,
+              // Prevent keyboard from triggering a full layout rebuild
+              resizeToAvoidBottomInset: false,
 
-            backgroundColor: const Color.fromARGB(255, 234, 248, 255),
-
-            //body
-            body: Column(
-              children: [
-                Expanded(
-                  child: StreamBuilder(
-                    stream: APIs.getAllMessages(widget.user),
-                    builder: (context, snapshot) {
-                      switch (snapshot.connectionState) {
-                        //if data is loading
-                        case ConnectionState.waiting:
-                        case ConnectionState.none:
-                          return const SizedBox();
-
-                        //if some or all data is loaded then show it
-                        case ConnectionState.active:
-                        case ConnectionState.done:
-                          final data = snapshot.data?.docs;
-                          _list = data
-                                  ?.map((e) => Message.fromJson(e.data()))
-                                  .toList() ??
-                              [];
-
-                          if (_list.isNotEmpty) {
-                            return ListView.builder(
-                                reverse: true,
-                                itemCount: _list.length,
-                                padding: EdgeInsets.only(top: mq.height * .01),
-                                physics: const BouncingScrollPhysics(),
-                                itemBuilder: (context, index) {
-                                  return MessageCard(message: _list[index]);
-                                });
-                          } else {
-                            return const Center(
-                              child: Text('Say Hii! 👋',
-                                  style: TextStyle(fontSize: 20)),
-                            );
-                          }
-                      }
-                    },
-                  ),
-                ),
-
-                //progress indicator for showing uploading
-                if (_isUploading)
-                  const Align(
-                      alignment: Alignment.centerRight,
-                      child: Padding(
-                          padding:
-                              EdgeInsets.symmetric(vertical: 8, horizontal: 20),
-                          child: CircularProgressIndicator(strokeWidth: 2))),
-
-                //chat input filed
-                _chatInput(),
-
-                //show emojis on keyboard emoji button click & vice versa
-                if (_showEmoji)
-                  SizedBox(
-                    height: mq.height * .35,
-                    child: EmojiPicker(
-                      textEditingController: _textController,
-                      config: Config(
-                        bgColor: const Color.fromARGB(255, 234, 248, 255),
-                        columns: 8,
-                        emojiSizeMax: 32 * (Platform.isIOS ? 1.30 : 1.0),
+              // Authentic Acrylic / Frosted Glass Top Bar
+              appBar: AppBar(
+                toolbarHeight: 76,
+                automaticallyImplyLeading: false,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                flexibleSpace: ClipRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: ThemeController.headerColor.withValues(alpha: 0.55),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: ThemeController.dividerColor.withValues(alpha: 0.4),
+                            width: 0.5,
+                          ),
+                        ),
                       ),
                     ),
-                  )
-              ],
+                  ),
+                ),
+                titleSpacing: 0,
+                title: _appBar(),
+              ),
+
+              // Stack Body
+              body: Stack(
+                children: [
+                  // Layer 0: Messages ListView (cached stream)
+                  Positioned.fill(
+                    child: StreamBuilder(
+                      stream: _messagesStream,
+                      builder: (context, snapshot) {
+                        switch (snapshot.connectionState) {
+                          case ConnectionState.waiting:
+                          case ConnectionState.none:
+                            if (_list.isNotEmpty) {
+                              return _buildMessageList(topPadding, bottomListPadding);
+                            }
+                            return const SizedBox();
+
+                          case ConnectionState.active:
+                          case ConnectionState.done:
+                            final data = snapshot.data?.docs;
+                            _list = data?.map((e) => Message.fromJson(e.data())).toList() ?? [];
+
+                            if (_list.isNotEmpty) {
+                              return _buildMessageList(topPadding, bottomListPadding);
+                            } else {
+                              return Padding(
+                                padding: EdgeInsets.only(top: topPadding),
+                                child: const Center(
+                                  child: Text(
+                                    'No messages yet',
+                                    style: TextStyle(fontSize: 16, color: Color(0xFF8E8E93)),
+                                  ),
+                                ),
+                              );
+                            }
+                        }
+                      },
+                    ),
+                  ),
+
+                  // Layer 1: Floating Bottom Controls (moves up with keyboard)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: MediaQuery.of(context).viewInsets.bottom,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Uploading Indicator
+                        if (_isUploading)
+                          const Align(
+                            alignment: Alignment.centerRight,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 20),
+                              child: CupertinoActivityIndicator(color: Color(0xFF007AFF)),
+                            ),
+                          ),
+
+                        // Transparent Floating Input Bar
+                        _chatInput(),
+
+                        // Emoji Picker
+                        if (_showEmoji)
+                          Container(
+                            height: mq.height * .35,
+                            color: ThemeController.bgColor,
+                            padding: EdgeInsets.only(bottom: _safeBottom),
+                            child: EmojiPicker(
+                              textEditingController: _textController,
+                              config: Config(
+                                bgColor: ThemeController.bgColor,
+                                columns: 8,
+                                emojiSizeMax: 32 * (Platform.isIOS ? 1.30 : 1.0),
+                                indicatorColor: const Color(0xFF007AFF),
+                                iconColorSelected: const Color(0xFF007AFF),
+                                iconColor: ThemeController.subtextColor,
+                                backspaceColor: const Color(0xFF007AFF),
+                                skinToneDialogBgColor: ThemeController.cardColor,
+                                skinToneIndicatorColor: ThemeController.subtextColor,
+                                enableSkinTones: true,
+                                recentsLimit: 28,
+                                noRecents: Text(
+                                  'No Recents',
+                                  style: TextStyle(fontSize: 16, color: ThemeController.subtextColor),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  // app bar widget
+  // Extracted message list builder to avoid recreation
+  Widget _buildMessageList(double topPadding, double bottomListPadding) {
+    // Get current keyboard or emoji height for scroll padding
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final emojiHeight = _showEmoji ? mq.height * .35 : 0.0;
+    final effectiveBottomPadding = (keyboardHeight > 0 || _showEmoji)
+        ? (keyboardHeight > 0 ? keyboardHeight : emojiHeight) + 54
+        : bottomListPadding;
+
+    return ListView.builder(
+      controller: _scrollController,
+      reverse: true,
+      itemCount: _list.length,
+      padding: EdgeInsets.only(
+        top: topPadding,
+        bottom: effectiveBottomPadding,
+      ),
+      physics: const BouncingScrollPhysics(),
+      itemBuilder: (context, index) {
+        return MessageCard(message: _list[index]);
+      },
+    );
+  }
+
+  // Acrylic Frosted Header Widget (cached stream)
   Widget _appBar() {
-    return InkWell(
-        onTap: () {
-          Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => ViewProfileScreen(user: widget.user)));
-        },
-        child: StreamBuilder(
-            stream: APIs.getUserInfo(widget.user),
-            builder: (context, snapshot) {
-              final data = snapshot.data?.docs;
-              final list =
-                  data?.map((e) => ChatUser.fromJson(e.data())).toList() ?? [];
+    return StreamBuilder(
+      stream: _userInfoStream,
+      builder: (context, snapshot) {
+        final data = snapshot.data?.docs;
+        final list = data?.map((e) => ChatUser.fromJson(e.data())).toList() ?? [];
 
-              return Row(
+        final user = list.isNotEmpty ? list[0] : widget.user;
+        final name = user.name;
+        final image = user.image;
+        final isOnline = MyDateUtil.isUserOnline(
+          isOnline: user.isOnline,
+          lastActive: user.lastActive,
+        );
+        final statusText = MyDateUtil.getLastActiveTime(
+          context: context,
+          lastActive: user.lastActive,
+          isOnline: user.isOnline,
+        );
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Left Back Button (< Messages)
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Row(
+                  children: [
+                    Icon(CupertinoIcons.chevron_left, color: Color(0xFF007AFF), size: 18),
+                    SizedBox(width: 2),
+                    Text(
+                      'Messages',
+                      style: TextStyle(color: Color(0xFF007AFF), fontSize: 14, fontWeight: FontWeight.w400),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Centered Contact Profile Pic (40px), Name & Live Status Subtitle
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ViewProfileScreen(user: user)),
+                  );
+                },
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: CachedNetworkImage(
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            imageUrl: APIs.getOptimizedImageUrl(image, width: 100),
+                            cacheManager: AvatarCacheManager.instance,
+                            fadeInDuration: const Duration(milliseconds: 100),
+                            useOldImageOnUrlChange: true,
+                            errorWidget: (context, url, error) =>
+                                CircleAvatar(radius: 20, backgroundColor: ThemeController.cardColor, child: Icon(CupertinoIcons.person_fill, color: ThemeController.subtextColor, size: 20)),
+                          ),
+                        ),
+                        if (isOnline)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              width: 11,
+                              height: 11,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF34C759),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: ThemeController.bgColor, width: 2),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: ThemeController.textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        const Icon(CupertinoIcons.chevron_right, color: Color(0xFF8E8E93), size: 10),
+                      ],
+                    ),
+                    if (!isOnline && statusText.isNotEmpty && statusText != 'Offline')
+                      Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w400,
+                          color: ThemeController.subtextColor,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // Right spacer for header symmetry
+              const SizedBox(width: 75),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Compact iMessage-style Floating Bottom Input Bar
+  Widget _chatInput() {
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final bottomPadding = (keyboardHeight > 0 || _showEmoji) ? 4.0 : (_safeBottom > 0 ? _safeBottom + 2 : 8.0);
+
+    return Container(
+      color: Colors.transparent,
+      padding: EdgeInsets.only(
+        top: 4,
+        left: 8,
+        right: 8,
+        bottom: bottomPadding,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // iOS App / Photo Action Button (+) — iMessage blue
+          GestureDetector(
+            onTap: () => _showMediaPickerBottomSheet(),
+            child: const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: Icon(CupertinoIcons.plus_circle_fill, color: Color(0xFF007AFF), size: 30),
+            ),
+          ),
+
+          const SizedBox(width: 6),
+
+          // Compact iMessage Capsule Input Field
+          Expanded(
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 36),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: ThemeController.cardColor.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: ThemeController.dividerColor, width: 0.5),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  //back button
-                  IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon:
-                          const Icon(Icons.arrow_back, color: Colors.black54)),
-
-                  //user profile picture
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(mq.height * .03),
-                    child: CachedNetworkImage(
-                      width: mq.height * .05,
-                      height: mq.height * .05,
-                      imageUrl:
-                          list.isNotEmpty ? list[0].image : widget.user.image,
-                      errorWidget: (context, url, error) => const CircleAvatar(
-                          child: Icon(CupertinoIcons.person)),
+                  Expanded(
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _focusNode,
+                      keyboardType: TextInputType.multiline,
+                      maxLines: 5,
+                      minLines: 1,
+                      style: TextStyle(color: ThemeController.textColor, fontSize: 16, height: 1.25),
+                      onTap: () {
+                        if (_showEmoji) setState(() => _showEmoji = false);
+                      },
+                      decoration: const InputDecoration(
+                        hintText: 'Message',
+                        hintStyle: TextStyle(color: Color(0xFF8E8E93), fontSize: 16),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
                     ),
                   ),
 
-                  //for adding some space
-                  const SizedBox(width: 10),
+                  // Emoji button — just before camera button
+                  GestureDetector(
+                    onTap: _toggleEmojiKeyboard,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 6, right: 8),
+                      child: Icon(
+                        _showEmoji ? CupertinoIcons.keyboard : CupertinoIcons.smiley,
+                        color: const Color(0xFF007AFF),
+                        size: 22,
+                      ),
+                    ),
+                  ),
 
-                  //user name & last seen time
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      //user name
-                      Text(list.isNotEmpty ? list[0].name : widget.user.name,
-                          style: const TextStyle(
-                              fontSize: 16,
-                              color: Colors.black87,
-                              fontWeight: FontWeight.w500)),
-
-                      //for adding some space
-                      const SizedBox(height: 2),
-
-                      //last seen time of user
-                      Text(
-                          list.isNotEmpty
-                              ? list[0].isOnline
-                                  ? 'Online'
-                                  : MyDateUtil.getLastActiveTime(
-                                      context: context,
-                                      lastActive: list[0].lastActive)
-                              : MyDateUtil.getLastActiveTime(
-                                  context: context,
-                                  lastActive: widget.user.lastActive),
-                          style: const TextStyle(
-                              fontSize: 13, color: Colors.black54)),
-                    ],
-                  )
-                ],
-              );
-            }));
-  }
-
-  // bottom chat input field
-  Widget _chatInput() {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          vertical: mq.height * .01, horizontal: mq.width * .025),
-      child: Row(
-        children: [
-          //input field & buttons
-          Expanded(
-            child: Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15)),
-              child: Row(
-                children: [
-                  //emoji button
-                  IconButton(
-                      onPressed: () {
-                        FocusScope.of(context).unfocus();
-                        setState(() => _showEmoji = !_showEmoji);
-                      },
-                      icon: const Icon(Icons.emoji_emotions,
-                          color: Colors.blueAccent, size: 25)),
-
-                  Expanded(
-                      child: TextField(
-                    controller: _textController,
-                    keyboardType: TextInputType.multiline,
-                    maxLines: null,
-                    onTap: () {
-                      if (_showEmoji) setState(() => _showEmoji = !_showEmoji);
+                  // Camera quick action — iMessage blue
+                  GestureDetector(
+                    onTap: () async {
+                      final ImagePicker picker = ImagePicker();
+                      final XFile? image = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
+                      if (image != null) {
+                        log('Image Path: ${image.path}');
+                        setState(() => _isUploading = true);
+                        await APIs.sendChatImage(widget.user, File(image.path));
+                        setState(() => _isUploading = false);
+                      }
                     },
-                    decoration: const InputDecoration(
-                        hintText: 'Type Something...',
-                        hintStyle: TextStyle(color: Colors.blueAccent),
-                        border: InputBorder.none),
-                  )),
-
-                  //pick image from gallery button
-                  IconButton(
-                      onPressed: () async {
-                        final ImagePicker picker = ImagePicker();
-
-                        // Picking multiple images
-                        final List<XFile> images =
-                            await picker.pickMultiImage(imageQuality: 70);
-
-                        // uploading & sending image one by one
-                        for (var i in images) {
-                          log('Image Path: ${i.path}');
-                          setState(() => _isUploading = true);
-                          await APIs.sendChatImage(widget.user, File(i.path));
-                          setState(() => _isUploading = false);
-                        }
-                      },
-                      icon: const Icon(Icons.image,
-                          color: Colors.blueAccent, size: 26)),
-
-                  //take image from camera button
-                  IconButton(
-                      onPressed: () async {
-                        final ImagePicker picker = ImagePicker();
-
-                        // Pick an image
-                        final XFile? image = await picker.pickImage(
-                            source: ImageSource.camera, imageQuality: 70);
-                        if (image != null) {
-                          log('Image Path: ${image.path}');
-                          setState(() => _isUploading = true);
-
-                          await APIs.sendChatImage(
-                              widget.user, File(image.path));
-                          setState(() => _isUploading = false);
-                        }
-                      },
-                      icon: const Icon(Icons.camera_alt_rounded,
-                          color: Colors.blueAccent, size: 26)),
-
-                  //adding some space
-                  SizedBox(width: mq.width * .02),
+                    child: const Padding(
+                      padding: EdgeInsets.only(bottom: 6),
+                      child: Icon(CupertinoIcons.camera_fill, color: Color(0xFF007AFF), size: 22),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
 
-          //send message button
-          MaterialButton(
-            onPressed: () {
-              if (_textController.text.isNotEmpty) {
-                if (_list.isEmpty) {
-                  //on first message (add user to my_user collection of chat user)
-                  APIs.sendFirstMessage(
-                      widget.user, _textController.text, Type.text);
-                } else {
-                  //simply send message
-                  APIs.sendMessage(
-                      widget.user, _textController.text, Type.text);
-                }
+          const SizedBox(width: 6),
+
+          // iMessage Blue Up Arrow Send Button
+          GestureDetector(
+            onTap: () {
+              if (_textController.text.trim().isNotEmpty) {
+                final text = _textController.text.trim();
                 _textController.text = '';
+                if (_list.isEmpty) {
+                  APIs.sendFirstMessage(widget.user, text, Type.text);
+                } else {
+                  APIs.sendMessage(widget.user, text, Type.text);
+                }
+                _scrollToBottom();
               }
             },
-            minWidth: 0,
-            padding:
-                const EdgeInsets.only(top: 10, bottom: 10, right: 5, left: 10),
-            shape: const CircleBorder(),
-            color: Colors.green,
-            child: const Icon(Icons.send, color: Colors.white, size: 28),
-          )
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _hasTextNotifier,
+                builder: (context, hasText, _) {
+                  return Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: hasText ? const Color(0xFF007AFF) : const Color(0xFF007AFF).withValues(alpha: 0.35),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(CupertinoIcons.arrow_up, color: Colors.white, size: 18),
+                  );
+                },
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  // Smooth Toggle between Emoji Picker and System Keyboard
+  void _toggleEmojiKeyboard() {
+    if (_showEmoji) {
+      // Switch to Keyboard
+      setState(() => _showEmoji = false);
+      Future.delayed(const Duration(milliseconds: 50), () {
+        _focusNode.requestFocus();
+      });
+    } else {
+      // Switch to Emoji Picker
+      _focusNode.unfocus();
+      setState(() => _showEmoji = true);
+    }
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _showMediaPickerBottomSheet() {
+    CustomContextMenuDialog.show(
+      context: context,
+      items: [
+        ContextMenuItem(
+          title: 'Photo Library',
+          icon: CupertinoIcons.photo_on_rectangle,
+          onTap: () async {
+            final ImagePicker picker = ImagePicker();
+            final List<XFile> images = await picker.pickMultiImage(imageQuality: 70);
+
+            for (var i in images) {
+              log('Image Path: ${i.path}');
+              setState(() => _isUploading = true);
+              await APIs.sendChatImage(widget.user, File(i.path));
+              setState(() => _isUploading = false);
+            }
+          },
+        ),
+        ContextMenuItem(
+          title: 'Camera',
+          icon: CupertinoIcons.camera,
+          onTap: () async {
+            final ImagePicker picker = ImagePicker();
+            final XFile? image = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
+            if (image != null) {
+              log('Image Path: ${image.path}');
+              setState(() => _isUploading = true);
+              await APIs.sendChatImage(widget.user, File(image.path));
+              setState(() => _isUploading = false);
+            }
+          },
+        ),
+        ContextMenuItem(
+          title: 'Video Library',
+          icon: CupertinoIcons.film,
+          onTap: () async {
+            final ImagePicker picker = ImagePicker();
+            final XFile? video = await picker.pickVideo(source: ImageSource.gallery);
+            if (video != null) {
+              await _handleVideoSelection(File(video.path));
+            }
+          },
+        ),
+        ContextMenuItem(
+          title: 'Record Video',
+          icon: CupertinoIcons.videocam_fill,
+          onTap: () async {
+            final ImagePicker picker = ImagePicker();
+            final XFile? video = await picker.pickVideo(source: ImageSource.camera);
+            if (video != null) {
+              await _handleVideoSelection(File(video.path));
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  // Handle video size validation (50MB limit) and upload
+  Future<void> _handleVideoSelection(File videoFile) async {
+    try {
+      final sizeInBytes = await videoFile.length();
+      final sizeInMB = sizeInBytes / (1024 * 1024);
+      log('Selected video size: ${sizeInMB.toStringAsFixed(2)}MB');
+
+      if (sizeInMB > 50) {
+        if (mounted) {
+          Dialogs.showSnackbar(
+            context,
+            'Video size exceeds 50MB limit (${sizeInMB.toStringAsFixed(1)}MB)',
+          );
+        }
+        return;
+      }
+
+      setState(() => _isUploading = true);
+      await APIs.sendChatVideo(widget.user, videoFile);
+    } catch (e) {
+      log('Error handling video selection: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
   }
 }

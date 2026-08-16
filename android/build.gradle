@@ -1,20 +1,44 @@
-buildscript {
-    ext.kotlin_version = '1.7.10'
-    repositories {
-        google()
-        mavenCentral()
-    }
-
-    dependencies {
-        classpath 'com.android.tools.build:gradle:7.2.0'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-    }
-}
-
 allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+}
+
+// Force BuildConfig generation and namespace injection for all subprojects (required by AGP 8.x for older plugins)
+subprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin('com.android.library') ||
+            project.plugins.hasPlugin('com.android.application')) {
+            project.android.compileSdkVersion = 36
+            project.android.buildFeatures.buildConfig = true
+            project.android.compileOptions {
+                sourceCompatibility = JavaVersion.VERSION_17
+                targetCompatibility = JavaVersion.VERSION_17
+            }
+            project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                    jvmTarget = '17'
+                }
+            }
+            if (project.android.namespace == null) {
+                try {
+                    def manifestFile = project.file('src/main/AndroidManifest.xml')
+                    if (manifestFile.exists()) {
+                        def match = manifestFile.text =~ /package="([^"]+)"/
+                        if (match) {
+                            project.android.namespace = match[0][1]
+                        } else {
+                            project.android.namespace = "dev.flutter.plugins.${project.name.replace('-', '_')}"
+                        }
+                    } else {
+                        project.android.namespace = "dev.flutter.plugins.${project.name.replace('-', '_')}"
+                    }
+                } catch (Exception e) {
+                    project.android.namespace = "dev.flutter.plugins.${project.name.replace('-', '_')}"
+                }
+            }
+        }
     }
 }
 
@@ -26,6 +50,6 @@ subprojects {
     project.evaluationDependsOn(':app')
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
+tasks.register("clean", Delete) {
+    delete rootProject.layout.buildDirectory
 }
