@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_compress/video_compress.dart';
 
 import 'package:flutter/material.dart';
@@ -1443,6 +1444,23 @@ class APIs {
       log('Error isUserBlockedFromStatus: $e');
     }
     return false;
+  }
+
+  // Launch external URL in browser
+  static Future<void> openUrl(String urlStr) async {
+    try {
+      final uri = Uri.parse(urlStr);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        log('Could not launch via externalApplication. Trying platformDefault mode...');
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (e) {
+      log('Error openUrl: $e');
+    }
   }
 }
 

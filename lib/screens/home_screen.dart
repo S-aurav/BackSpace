@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -44,6 +45,61 @@ class _HomeScreenState extends State<HomeScreen> {
     APIs.getSelfInfo();
     _myUsersStream = APIs.getMyUsersId();
     _myGroupsStream = APIs.getMyGroups();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAppUpdate());
+  }
+
+  void _checkAppUpdate() async {
+    try {
+      final doc = await APIs.firestore.collection('config').doc('app_version').get();
+      log('CheckAppUpdate doc exists: ${doc.exists}, data: ${doc.data()}');
+
+      if (doc.exists && doc.data() != null) {
+        final rawData = doc.data()!;
+        final Map<String, dynamic> data = {};
+        rawData.forEach((key, value) {
+          data[key.trim()] = value;
+        });
+
+        final latestVersion = (data['latest_version'] ?? data['latestVersion'] ?? '2.0.0').toString().trim();
+        final downloadUrl = (data['download_url'] ?? data['downloadUrl'] ?? 'https://github.com/S-aurav/BackSpace/releases').toString();
+        final forceUpdate = (data['force_update'] ?? data['forceUpdate'] ?? false) as bool;
+
+        // Current app version (from pubspec.yaml)
+        const currentVersion = '2.0.0';
+        log('Comparing versions: latest="$latestVersion", current="$currentVersion"');
+
+        if (latestVersion != currentVersion) {
+          if (!mounted) return;
+          showCupertinoDialog(
+            context: context,
+            barrierDismissible: !forceUpdate,
+            builder: (ctx) => CupertinoAlertDialog(
+              title: const Text('🎉 Update Available!'),
+              content: Text(
+                'Version $latestVersion is now available with new features & performance fixes.\n\nPlease update to get the latest experience!',
+              ),
+              actions: [
+                if (!forceUpdate)
+                  CupertinoDialogAction(
+                    child: const Text('Later'),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                CupertinoDialogAction(
+                  isDefaultAction: true,
+                  child: const Text('Download Update'),
+                  onPressed: () {
+                    if (!forceUpdate) Navigator.pop(ctx);
+                    APIs.openUrl(downloadUrl);
+                  },
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      log('Error checking update: $e');
+    }
   }
 
   @override
