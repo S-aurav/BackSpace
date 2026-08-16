@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-brightgreen)](#)
 [![Version](https://img.shields.io/badge/Version-v2.0.0-blue)](#)
 
-**BackSpace** is a full-featured, cross-platform real-time messaging application built with **Flutter**, **Firebase**, and **Cloudinary**. Designed with modern iOS 17 frosted glassmorphic aesthetics, BackSpace features instant 1-on-1 messaging, robust group chats, 24-hour expiring status/stories, FCM v1 rich push notifications, WhatsApp-style message edit/delete rules, and automated serverless media lifecycle cleanup.
+**BackSpace** is a full-featured, cross-platform real-time messaging application built with **Flutter**, **Firebase**, and **Cloudinary**. BackSpace features instant 1-on-1 messaging, robust group chats, 24-hour expiring status/stories, FCM v1 rich push notifications, WhatsApp-style message edit/delete rules, and automated serverless media lifecycle cleanup.
 
 ---
 
@@ -41,11 +41,6 @@
 ### ☁️ Cloudinary Storage & Serverless Cleanup
 - **Auto-Format & Compression**: Instant image/video optimization using Cloudinary's dynamic CDN (`f_auto`, `q_auto`, responsive resizing).
 - **Serverless Media Purge**: Firebase Cloud Functions listen to Firestore `onDelete` triggers to automatically delete associated image/video assets from Cloudinary when messages or stories expire or get deleted.
-
-### 🎨 Modern iOS 17 Design System
-- **Frosted Acrylic Backdrop**: Real-time blur (`BackdropFilter` sigma 18-30) and spring scale-up animations.
-- **Tap-Anchored Context Popovers**: Custom `CustomContextMenuDialog` popovers replacing legacy bottom sheets.
-- **Light & Dark Mode**: Seamless theme toggling with curated HSL color palettes.
 
 ---
 
@@ -147,37 +142,6 @@ static const String cloudinaryUploadPreset = 'YOUR_CLOUDINARY_UPLOAD_PRESET';
    ```bash
    npx -y firebase-tools@latest deploy --only functions
    ```
-
----
-
-### Step 6: Build & Run the App
-
-Return to the root directory and run the app on an Android device or emulator:
-
-```bash
-cd ..
-flutter run
-```
-
-To build a production Release APK:
-
-```bash
-flutter build apk --release
-```
-The compiled APK will be located at:
-`build/app/outputs/flutter-apk/app-release.apk`
-
----
-
-## 📜 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to open an Issue or submit a Pull Request.
 
 ---
 
