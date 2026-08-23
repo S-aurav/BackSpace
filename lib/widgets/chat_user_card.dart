@@ -38,7 +38,8 @@ class _ChatUserCardState extends State<ChatUserCard> {
         InkWell(
           onTapDown: (details) => tapPos = details.globalPosition,
           onTap: () {
-            FocusScope.of(context).unfocus();
+            FocusScope.of(context).unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
+            FocusManager.instance.primaryFocus?.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => ChatScreen(user: widget.user)),

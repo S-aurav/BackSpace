@@ -18,6 +18,7 @@ import '../main.dart';
 import '../models/chat_user.dart';
 import '../models/message.dart';
 import '../widgets/custom_context_menu_dialog.dart';
+import '../widgets/gif_picker_sheet.dart';
 import '../widgets/message_card.dart';
 import 'view_profile_screen.dart';
 
@@ -31,6 +32,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  Message? _replyMessage;
   List<Message> _list = [];
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
@@ -97,13 +99,12 @@ class _ChatScreenState extends State<ChatScreen> {
             _focusNode.unfocus();
             if (_showEmoji) setState(() => _showEmoji = false);
           },
-          child: WillPopScope(
-            onWillPop: () {
+          child: PopScope(
+            canPop: !_showEmoji,
+            onPopInvokedWithResult: (didPop, result) {
+              if (didPop) return;
               if (_showEmoji) {
                 setState(() => _showEmoji = false);
-                return Future.value(false);
-              } else {
-                return Future.value(true);
               }
             },
             child: Scaffold(
@@ -119,16 +120,18 @@ class _ChatScreenState extends State<ChatScreen> {
                 automaticallyImplyLeading: false,
                 backgroundColor: Colors.transparent,
                 elevation: 0,
-                flexibleSpace: ClipRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: ThemeController.headerColor.withValues(alpha: 0.55),
-                        border: Border(
-                          bottom: BorderSide(
-                            color: ThemeController.dividerColor.withValues(alpha: 0.4),
-                            width: 0.5,
+                flexibleSpace: RepaintBoundary(
+                  child: ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: ThemeController.headerColor.withValues(alpha: 0.55),
+                          border: Border(
+                            bottom: BorderSide(
+                              color: ThemeController.dividerColor.withValues(alpha: 0.4),
+                              width: 0.5,
+                            ),
                           ),
                         ),
                       ),
@@ -142,92 +145,96 @@ class _ChatScreenState extends State<ChatScreen> {
               // Stack Body
               body: Stack(
                 children: [
-                  // Layer 0: Messages ListView (cached stream)
+                  // Layer 0: Messages ListView (cached stream + RepaintBoundary for smooth 60fps keyboard slide)
                   Positioned.fill(
-                    child: StreamBuilder(
-                      stream: _messagesStream,
-                      builder: (context, snapshot) {
-                        switch (snapshot.connectionState) {
-                          case ConnectionState.waiting:
-                          case ConnectionState.none:
-                            if (_list.isNotEmpty) {
-                              return _buildMessageList(topPadding, bottomListPadding);
-                            }
-                            return const SizedBox();
+                    child: RepaintBoundary(
+                      child: StreamBuilder(
+                        stream: _messagesStream,
+                        builder: (context, snapshot) {
+                          switch (snapshot.connectionState) {
+                            case ConnectionState.waiting:
+                            case ConnectionState.none:
+                              if (_list.isNotEmpty) {
+                                return _buildMessageList(topPadding, bottomListPadding);
+                              }
+                              return const SizedBox();
 
-                          case ConnectionState.active:
-                          case ConnectionState.done:
-                            final data = snapshot.data?.docs;
-                            _list = data?.map((e) => Message.fromJson(e.data())).toList() ?? [];
+                            case ConnectionState.active:
+                            case ConnectionState.done:
+                              final data = snapshot.data?.docs;
+                              _list = data?.map((e) => Message.fromJson(e.data())).toList() ?? [];
 
-                            if (_list.isNotEmpty) {
-                              return _buildMessageList(topPadding, bottomListPadding);
-                            } else {
-                              return Padding(
-                                padding: EdgeInsets.only(top: topPadding),
-                                child: const Center(
-                                  child: Text(
-                                    'No messages yet',
-                                    style: TextStyle(fontSize: 16, color: Color(0xFF8E8E93)),
+                              if (_list.isNotEmpty) {
+                                return _buildMessageList(topPadding, bottomListPadding);
+                              } else {
+                                return Padding(
+                                  padding: EdgeInsets.only(top: topPadding),
+                                  child: const Center(
+                                    child: Text(
+                                      'No messages yet',
+                                      style: TextStyle(fontSize: 16, color: Color(0xFF8E8E93)),
+                                    ),
                                   ),
-                                ),
-                              );
-                            }
-                        }
-                      },
+                                );
+                              }
+                          }
+                        },
+                      ),
                     ),
                   ),
 
-                  // Layer 1: Floating Bottom Controls (moves up with keyboard)
+                  // Layer 1: Floating Bottom Controls (moves up smoothly with keyboard)
                   Positioned(
                     left: 0,
                     right: 0,
                     bottom: MediaQuery.of(context).viewInsets.bottom,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Uploading Indicator
-                        if (_isUploading)
-                          const Align(
-                            alignment: Alignment.centerRight,
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 20),
-                              child: CupertinoActivityIndicator(color: Color(0xFF007AFF)),
+                    child: RepaintBoundary(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Uploading Indicator
+                          if (_isUploading)
+                            const Align(
+                              alignment: Alignment.centerRight,
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 20),
+                                child: CupertinoActivityIndicator(color: Color(0xFF007AFF)),
+                              ),
                             ),
-                          ),
 
-                        // Transparent Floating Input Bar
-                        _chatInput(),
+                          // Transparent Floating Input Bar
+                          _chatInput(),
 
-                        // Emoji Picker
-                        if (_showEmoji)
-                          Container(
-                            height: mq.height * .35,
-                            color: ThemeController.bgColor,
-                            padding: EdgeInsets.only(bottom: _safeBottom),
-                            child: EmojiPicker(
-                              textEditingController: _textController,
-                              config: Config(
-                                bgColor: ThemeController.bgColor,
-                                columns: 8,
-                                emojiSizeMax: 32 * (Platform.isIOS ? 1.30 : 1.0),
-                                indicatorColor: const Color(0xFF007AFF),
-                                iconColorSelected: const Color(0xFF007AFF),
-                                iconColor: ThemeController.subtextColor,
-                                backspaceColor: const Color(0xFF007AFF),
-                                skinToneDialogBgColor: ThemeController.cardColor,
-                                skinToneIndicatorColor: ThemeController.subtextColor,
-                                enableSkinTones: true,
-                                recentsLimit: 28,
-                                noRecents: Text(
-                                  'No Recents',
-                                  style: TextStyle(fontSize: 16, color: ThemeController.subtextColor),
-                                  textAlign: TextAlign.center,
+                          // Emoji Picker
+                          if (_showEmoji)
+                            Container(
+                              height: mq.height * .35,
+                              color: ThemeController.bgColor,
+                              padding: EdgeInsets.only(bottom: _safeBottom),
+                              child: EmojiPicker(
+                                textEditingController: _textController,
+                                config: Config(
+                                  bgColor: ThemeController.bgColor,
+                                  columns: 8,
+                                  emojiSizeMax: 32 * (Platform.isIOS ? 1.30 : 1.0),
+                                  indicatorColor: const Color(0xFF007AFF),
+                                  iconColorSelected: const Color(0xFF007AFF),
+                                  iconColor: ThemeController.subtextColor,
+                                  backspaceColor: const Color(0xFF007AFF),
+                                  skinToneDialogBgColor: ThemeController.cardColor,
+                                  skinToneIndicatorColor: ThemeController.subtextColor,
+                                  enableSkinTones: true,
+                                  recentsLimit: 28,
+                                  noRecents: Text(
+                                    'No Recents',
+                                    style: TextStyle(fontSize: 16, color: ThemeController.subtextColor),
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -258,7 +265,15 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       physics: const BouncingScrollPhysics(),
       itemBuilder: (context, index) {
-        return MessageCard(message: _list[index]);
+        return MessageCard(
+          message: _list[index],
+          onSwipeToReply: (msg) {
+            setState(() {
+              _replyMessage = msg;
+            });
+            _focusNode.requestFocus();
+          },
+        );
       },
     );
   }
@@ -307,6 +322,8 @@ class _ChatScreenState extends State<ChatScreen> {
               // Centered Contact Profile Pic (40px), Name & Live Status Subtitle
               GestureDetector(
                 onTap: () {
+                  _focusNode.unfocus();
+                  FocusScope.of(context).unfocus();
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => ViewProfileScreen(user: user)),
@@ -386,6 +403,65 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildQuotedReplyBanner() {
+    if (_replyMessage == null) return const SizedBox.shrink();
+
+    final isMe = _replyMessage!.fromId == APIs.user.uid;
+    final senderName = isMe ? 'You' : widget.user.name;
+    String previewText = _replyMessage!.msg;
+    if (_replyMessage!.type == Type.image) previewText = '📷 Photo';
+    if (_replyMessage!.type == Type.video) previewText = '🎬 Video';
+    if (_replyMessage!.type == Type.gif) previewText = '👾 GIF';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6, left: 4, right: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: ThemeController.cardColor.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(12),
+        border: const Border(
+          left: BorderSide(color: Color(0xFF007AFF), width: 3.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Replying to $senderName',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF007AFF),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  previewText,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: ThemeController.textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => setState(() => _replyMessage = null),
+            child: const Icon(CupertinoIcons.xmark_circle_fill, color: Colors.grey, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Compact iMessage-style Floating Bottom Input Bar
   Widget _chatInput() {
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
@@ -399,122 +475,206 @@ class _ChatScreenState extends State<ChatScreen> {
         right: 8,
         bottom: bottomPadding,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // iOS App / Photo Action Button (+) — iMessage blue
-          GestureDetector(
-            onTap: () => _showMediaPickerBottomSheet(),
-            child: const Padding(
-              padding: EdgeInsets.only(bottom: 4),
-              child: Icon(CupertinoIcons.plus_circle_fill, color: Color(0xFF007AFF), size: 30),
-            ),
-          ),
-
-          const SizedBox(width: 6),
-
-          // Compact iMessage Capsule Input Field
-          Expanded(
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 36),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: ThemeController.cardColor.withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: ThemeController.dividerColor, width: 0.5),
+          _buildQuotedReplyBanner(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // iOS App / Photo Action Button (+) — iMessage blue
+              GestureDetector(
+                onTap: () => _showMediaPickerBottomSheet(),
+                child: const Padding(
+                  padding: EdgeInsets.only(bottom: 4),
+                  child: Icon(CupertinoIcons.plus_circle_fill, color: Color(0xFF007AFF), size: 30),
+                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      focusNode: _focusNode,
-                      keyboardType: TextInputType.multiline,
-                      maxLines: 5,
-                      minLines: 1,
-                      style: TextStyle(color: ThemeController.textColor, fontSize: 16, height: 1.25),
-                      onTap: () {
-                        if (_showEmoji) setState(() => _showEmoji = false);
-                      },
-                      decoration: const InputDecoration(
-                        hintText: 'Message',
-                        hintStyle: TextStyle(color: Color(0xFF8E8E93), fontSize: 16),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  ),
 
-                  // Emoji button — just before camera button
-                  GestureDetector(
-                    onTap: _toggleEmojiKeyboard,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 6, right: 8),
-                      child: Icon(
-                        _showEmoji ? CupertinoIcons.keyboard : CupertinoIcons.smiley,
-                        color: const Color(0xFF007AFF),
-                        size: 22,
-                      ),
-                    ),
-                  ),
+              const SizedBox(width: 6),
 
-                  // Camera quick action — iMessage blue
-                  GestureDetector(
-                    onTap: () async {
-                      final ImagePicker picker = ImagePicker();
-                      final XFile? image = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
-                      if (image != null) {
-                        log('Image Path: ${image.path}');
-                        setState(() => _isUploading = true);
-                        await APIs.sendChatImage(widget.user, File(image.path));
-                        setState(() => _isUploading = false);
-                      }
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.only(bottom: 6),
-                      child: Icon(CupertinoIcons.camera_fill, color: Color(0xFF007AFF), size: 22),
-                    ),
+              // Compact iMessage Capsule Input Field
+              Expanded(
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: ThemeController.cardColor.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: ThemeController.dividerColor, width: 0.5),
                   ),
-                ],
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _textController,
+                          focusNode: _focusNode,
+                          keyboardType: TextInputType.multiline,
+                          maxLines: 5,
+                          minLines: 1,
+                          style: TextStyle(color: ThemeController.textColor, fontSize: 16, height: 1.25),
+                          onTap: () {
+                            if (_showEmoji) setState(() => _showEmoji = false);
+                          },
+                          decoration: const InputDecoration(
+                            hintText: 'Message',
+                            hintStyle: TextStyle(color: Color(0xFF8E8E93), fontSize: 16),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+
+                      // GIF button — just before emoji picker button
+                      GestureDetector(
+                        onTap: () {
+                          GifPickerSheet.show(
+                            context: context,
+                            onGifSelected: (gif) async {
+                              if (_replyMessage != null) {
+                                final isMe = _replyMessage!.fromId == APIs.user.uid;
+                                final senderName = isMe ? APIs.me.name : widget.user.name;
+                                String replyText = _replyMessage!.msg;
+                                if (_replyMessage!.type == Type.image) replyText = '📷 Photo';
+                                if (_replyMessage!.type == Type.video) replyText = '🎬 Video';
+                                if (_replyMessage!.type == Type.gif) replyText = '👾 GIF';
+
+                                await APIs.sendChatGif(
+                                  widget.user,
+                                  gif,
+                                  replyToMsg: replyText,
+                                  replyToSenderName: senderName,
+                                  replyToType: _replyMessage!.type.name,
+                                  replyToMediaUrl: (_replyMessage!.type == Type.image ||
+                                          _replyMessage!.type == Type.video ||
+                                          _replyMessage!.type == Type.gif)
+                                      ? _replyMessage!.msg
+                                      : null,
+                                );
+                                setState(() => _replyMessage = null);
+                              } else {
+                                await APIs.sendChatGif(widget.user, gif);
+                              }
+                              _scrollToBottom();
+                            },
+                          );
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 6, right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF007AFF).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF007AFF).withValues(alpha: 0.3), width: 0.5),
+                          ),
+                          child: const Text(
+                            'GIF',
+                            style: TextStyle(
+                              color: Color(0xFF007AFF),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Emoji button — just before camera button
+                      GestureDetector(
+                        onTap: _toggleEmojiKeyboard,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 6, right: 8),
+                          child: Icon(
+                            _showEmoji ? CupertinoIcons.keyboard : CupertinoIcons.smiley,
+                            color: const Color(0xFF007AFF),
+                            size: 22,
+                          ),
+                        ),
+                      ),
+
+                      // Camera quick action — iMessage blue
+                      GestureDetector(
+                        onTap: () async {
+                          final ImagePicker picker = ImagePicker();
+                          final XFile? image = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
+                          if (image != null) {
+                            log('Image Path: ${image.path}');
+                            setState(() => _isUploading = true);
+                            await APIs.sendChatImage(widget.user, File(image.path));
+                            setState(() => _isUploading = false);
+                          }
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.only(bottom: 6),
+                          child: Icon(CupertinoIcons.camera_fill, color: Color(0xFF007AFF), size: 22),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
 
-          const SizedBox(width: 6),
+              const SizedBox(width: 6),
 
-          // iMessage Blue Up Arrow Send Button
-          GestureDetector(
-            onTap: () {
-              if (_textController.text.trim().isNotEmpty) {
-                final text = _textController.text.trim();
-                _textController.text = '';
-                if (_list.isEmpty) {
-                  APIs.sendFirstMessage(widget.user, text, Type.text);
-                } else {
-                  APIs.sendMessage(widget.user, text, Type.text);
-                }
-                _scrollToBottom();
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _hasTextNotifier,
-                builder: (context, hasText, _) {
-                  return Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: hasText ? const Color(0xFF007AFF) : const Color(0xFF007AFF).withValues(alpha: 0.35),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(CupertinoIcons.arrow_up, color: Colors.white, size: 18),
-                  );
+              // iMessage Blue Up Arrow Send Button
+              GestureDetector(
+                onTap: () {
+                  if (_textController.text.trim().isNotEmpty) {
+                    final text = _textController.text.trim();
+                    _textController.text = '';
+                    _focusNode.unfocus();
+
+                    if (_replyMessage != null) {
+                      final isMe = _replyMessage!.fromId == APIs.user.uid;
+                      final senderName = isMe ? APIs.me.name : widget.user.name;
+                      String replyText = _replyMessage!.msg;
+                      if (_replyMessage!.type == Type.image) replyText = '📷 Photo';
+                      if (_replyMessage!.type == Type.video) replyText = '🎬 Video';
+                      if (_replyMessage!.type == Type.gif) replyText = '👾 GIF';
+
+                      APIs.sendMessage(
+                        widget.user,
+                        text,
+                        Type.text,
+                        replyToMsg: replyText,
+                        replyToSenderName: senderName,
+                        replyToType: _replyMessage!.type.name,
+                        replyToMediaUrl: (_replyMessage!.type == Type.image ||
+                                _replyMessage!.type == Type.video ||
+                                _replyMessage!.type == Type.gif)
+                            ? _replyMessage!.msg
+                            : null,
+                      );
+                      setState(() => _replyMessage = null);
+                    } else if (_list.isEmpty) {
+                      APIs.sendFirstMessage(widget.user, text, Type.text);
+                    } else {
+                      APIs.sendMessage(widget.user, text, Type.text);
+                    }
+                    _scrollToBottom();
+                  }
                 },
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _hasTextNotifier,
+                    builder: (context, hasText, _) {
+                      return Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: hasText ? const Color(0xFF007AFF) : const Color(0xFF007AFF).withValues(alpha: 0.35),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(CupertinoIcons.arrow_up, color: Colors.white, size: 18),
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -547,6 +707,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showMediaPickerBottomSheet() {
+    _focusNode.unfocus();
+    FocusScope.of(context).unfocus();
     CustomContextMenuDialog.show(
       context: context,
       items: [

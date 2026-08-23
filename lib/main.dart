@@ -89,22 +89,24 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Initial presence ping & push notifications setup
-    if (APIs.auth.currentUser != null) {
-      APIs.startHeartbeat();
-      APIs.getFirebaseMessagingToken();
-      APIs.initInAppMessageListener();
-    }
-
-    // Listen to Firebase Auth state changes
-    APIs.auth.authStateChanges().listen((user) {
-      if (user != null) {
+    // Defer non-critical setup until after the first frame renders for maximum startup smoothness
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (APIs.auth.currentUser != null) {
         APIs.startHeartbeat();
         APIs.getFirebaseMessagingToken();
         APIs.initInAppMessageListener();
-      } else {
-        APIs.stopHeartbeat();
       }
+
+      // Listen to Firebase Auth state changes
+      APIs.auth.authStateChanges().listen((user) {
+        if (user != null) {
+          APIs.startHeartbeat();
+          APIs.getFirebaseMessagingToken();
+          APIs.initInAppMessageListener();
+        } else {
+          APIs.stopHeartbeat();
+        }
+      });
     });
   }
 

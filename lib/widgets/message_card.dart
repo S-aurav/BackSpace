@@ -22,9 +22,14 @@ import 'full_screen_video_viewer.dart';
 
 // Authentic 1:1 iOS iMessage Chat Bubble with Dynamic Light/Dark Theme Support
 class MessageCard extends StatefulWidget {
-  const MessageCard({super.key, required this.message});
+  const MessageCard({
+    super.key,
+    required this.message,
+    this.onSwipeToReply,
+  });
 
   final Message message;
+  final Function(Message)? onSwipeToReply;
 
   @override
   State<MessageCard> createState() => _MessageCardState();
@@ -35,10 +40,123 @@ class _MessageCardState extends State<MessageCard> {
   Widget build(BuildContext context) {
     bool isMe = APIs.user.uid == widget.message.fromId;
     Offset? tapPos;
-    return InkWell(
-      onTapDown: (details) => tapPos = details.globalPosition,
-      onLongPress: () => _showCupertinoActionSheet(isMe, targetOffset: tapPos),
-      child: isMe ? _myMessage() : _contactMessage(),
+    return Dismissible(
+      key: Key(widget.message.sent),
+      direction: DismissDirection.startToEnd,
+      confirmDismiss: (direction) async {
+        HapticFeedback.lightImpact();
+        if (widget.onSwipeToReply != null) {
+          widget.onSwipeToReply!(widget.message);
+        }
+        return false;
+      },
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 16),
+        color: Colors.transparent,
+        child: const Icon(
+          CupertinoIcons.reply,
+          color: Color(0xFF007AFF),
+          size: 22,
+        ),
+      ),
+      child: InkWell(
+        onTapDown: (details) => tapPos = details.globalPosition,
+        onLongPress: () => _showCupertinoActionSheet(isMe, targetOffset: tapPos),
+        child: isMe ? _myMessage() : _contactMessage(),
+      ),
+    );
+  }
+
+  // Quoted reply box preview (WhatsApp style)
+  Widget _buildReplyPreviewBox(Message message, bool isMe, bool isDark) {
+    if (message.replyToMsg == null || message.replyToMsg!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final bool isStory = message.replyToType == 'story';
+    final String title = isStory
+        ? '${message.replyToSenderName ?? "Contact"}\'s Status'
+        : (message.replyToSenderName ?? 'Replied Message');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isMe
+            ? Colors.black.withValues(alpha: 0.18)
+            : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06)),
+        borderRadius: BorderRadius.circular(10),
+        border: Border(
+          left: BorderSide(
+            color: isStory
+                ? const Color(0xFFFF9500)
+                : (isMe ? Colors.white : const Color(0xFF007AFF)),
+            width: 3.5,
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isStory) ...[
+                      const Icon(CupertinoIcons.sparkles, size: 12, color: Color(0xFFFF9500)),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isStory
+                              ? const Color(0xFFFF9500)
+                              : (isMe ? Colors.white : const Color(0xFF007AFF)),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message.replyToMsg!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isMe
+                        ? Colors.white.withValues(alpha: 0.9)
+                        : (isDark ? Colors.white70 : Colors.black87),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (message.replyToMediaUrl != null && message.replyToMediaUrl!.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: CachedNetworkImage(
+                width: 36,
+                height: 36,
+                fit: BoxFit.cover,
+                imageUrl: APIs.getOptimizedImageUrl(message.replyToMediaUrl!, width: 100),
+                errorWidget: (_, __, ___) => const Icon(CupertinoIcons.photo, size: 18, color: Colors.grey),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -56,10 +174,26 @@ class _MessageCardState extends State<MessageCard> {
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          widget.message.type == Type.image
-              ? _imageBubble(isMe: false)
+          (widget.message.type == Type.image || widget.message.type == Type.gif)
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                      _buildReplyPreviewBox(widget.message, false, isDark),
+                    _imageBubble(isMe: false),
+                  ],
+                )
               : widget.message.type == Type.video
-                  ? _videoBubble(isMe: false)
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                          _buildReplyPreviewBox(widget.message, false, isDark),
+                        _videoBubble(isMe: false),
+                      ],
+                    )
                   : Flexible(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -72,13 +206,21 @@ class _MessageCardState extends State<MessageCard> {
                             bottomLeft: Radius.circular(4),
                           ),
                         ),
-                        child: Text(
-                          widget.message.msg,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: isDark ? Colors.white : Colors.black,
-                            height: 1.25,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                              _buildReplyPreviewBox(widget.message, false, isDark),
+                            Text(
+                              widget.message.msg,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: isDark ? Colors.white : Colors.black,
+                                height: 1.25,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -97,6 +239,7 @@ class _MessageCardState extends State<MessageCard> {
 
   // Sent user message (iOS Solid Blue #007AFF Bubble)
   Widget _myMessage() {
+    final isDark = ThemeController.isDark;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: mq.width * .03, vertical: 3),
       child: Column(
@@ -115,10 +258,26 @@ class _MessageCardState extends State<MessageCard> {
               const SizedBox(width: 6),
 
               // iMessage Bubble (Text, Image, or Video)
-              widget.message.type == Type.image
-                  ? _imageBubble(isMe: true)
+              (widget.message.type == Type.image || widget.message.type == Type.gif)
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                          _buildReplyPreviewBox(widget.message, true, isDark),
+                        _imageBubble(isMe: true),
+                      ],
+                    )
                   : widget.message.type == Type.video
-                      ? _videoBubble(isMe: true)
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                              _buildReplyPreviewBox(widget.message, true, isDark),
+                            _videoBubble(isMe: true),
+                          ],
+                        )
                       : Flexible(
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -131,9 +290,17 @@ class _MessageCardState extends State<MessageCard> {
                                 bottomRight: Radius.circular(4),
                               ),
                             ),
-                            child: Text(
-                              widget.message.msg,
-                              style: const TextStyle(fontSize: 16, color: Colors.white, height: 1.25),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                                  _buildReplyPreviewBox(widget.message, true, isDark),
+                                Text(
+                                  widget.message.msg,
+                                  style: const TextStyle(fontSize: 16, color: Colors.white, height: 1.25),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -175,6 +342,8 @@ class _MessageCardState extends State<MessageCard> {
 
     return GestureDetector(
       onTap: () {
+        FocusScope.of(context).unfocus();
+        FocusManager.instance.primaryFocus?.unfocus();
         Navigator.push(
           context,
           PageRouteBuilder(
@@ -279,6 +448,8 @@ class _MessageCardState extends State<MessageCard> {
 
     return GestureDetector(
       onTap: () {
+        FocusScope.of(context).unfocus();
+        FocusManager.instance.primaryFocus?.unfocus();
         Navigator.push(
           context,
           PageRouteBuilder(
@@ -390,6 +561,15 @@ class _MessageCardState extends State<MessageCard> {
       context: context,
       targetOffset: targetOffset,
       items: [
+        ContextMenuItem(
+          title: 'Reply',
+          icon: CupertinoIcons.reply,
+          onTap: () {
+            if (widget.onSwipeToReply != null) {
+              widget.onSwipeToReply!(widget.message);
+            }
+          },
+        ),
         if (widget.message.type == Type.text)
           ContextMenuItem(
             title: 'Copy',

@@ -13,8 +13,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_compress/video_compress.dart';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/app_config_models.dart';
 import '../models/chat_user.dart';
+import '../models/gif_item.dart';
 import '../models/group.dart';
 import '../models/message.dart';
 import '../models/story.dart';
@@ -23,6 +26,120 @@ import '../screens/group_chat_screen.dart';
 import '../widgets/in_app_notification_banner.dart';
 
 class APIs {
+  // Cached KLIPY API key
+  static String? _cachedKlipyApiKey;
+
+  /// Fetches App Update Info and release notes from Firestore config/app_version
+  static Future<AppUpdateInfo?> fetchAppUpdateInfo() async {
+    try {
+      final doc = await firestore.collection('config').doc('app_version').get();
+      if (doc.exists && doc.data() != null) {
+        final rawData = doc.data()!;
+        final Map<String, dynamic> data = {};
+        rawData.forEach((key, value) => data[key.trim()] = value);
+        return AppUpdateInfo.fromJson(data);
+      }
+    } catch (e) {
+      log('Error fetching app update info: $e');
+    }
+    return null;
+  }
+
+  /// Fetches Public Announcement from Firestore config/announcement
+  /// Returns null if inactive, empty, or already dismissed by the user
+  static Future<AppAnnouncement?> fetchPublicAnnouncement() async {
+    try {
+      final doc = await firestore.collection('config').doc('announcement').get();
+      if (doc.exists && doc.data() != null) {
+        final rawData = doc.data()!;
+        final Map<String, dynamic> data = {};
+        rawData.forEach((key, value) => data[key.trim()] = value);
+
+        final announcement = AppAnnouncement.fromJson(data);
+        if (!announcement.isActive || announcement.id.isEmpty) {
+          return null;
+        }
+
+        final prefs = await SharedPreferences.getInstance();
+        final dismissedId = prefs.getString('dismissed_announcement_id');
+        if (dismissedId == announcement.id) {
+          // User already dismissed this specific announcement
+          return null;
+        }
+
+        return announcement;
+      }
+    } catch (e) {
+      log('Error fetching public announcement: $e');
+    }
+    return null;
+  }
+
+  /// Marks a public announcement as dismissed so it is not shown again
+  static Future<void> dismissAnnouncement(String id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('dismissed_announcement_id', id);
+    } catch (e) {
+      log('Error dismissing announcement: $e');
+    }
+  }
+
+  /// Retrieves the KLIPY API key dynamically:
+  /// 1. In-memory cache
+  /// 2. Compile-time --dart-define=KLIPY_API_KEY=...
+  /// 3. Local SharedPreferences persistent cache
+  /// 4. Firestore collection('config').doc('services')
+  static Future<String> getKlipyApiKey() async {
+    // 1. In-memory cache
+    if (_cachedKlipyApiKey != null && _cachedKlipyApiKey!.isNotEmpty) {
+      return _cachedKlipyApiKey!;
+    }
+
+    // 2. Compile-time --dart-define
+    const envKey = String.fromEnvironment('KLIPY_API_KEY');
+    if (envKey.isNotEmpty) {
+      _cachedKlipyApiKey = envKey;
+      return envKey;
+    }
+
+    // 3. Local SharedPreferences cache
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final localKey = prefs.getString('cached_klipy_api_key');
+      if (localKey != null && localKey.isNotEmpty) {
+        _cachedKlipyApiKey = localKey;
+        // Background refresh from Firestore without blocking
+        _refreshKlipyApiKeyFromFirestore();
+        return localKey;
+      }
+    } catch (e) {
+      log('Error reading local KLIPY key: $e');
+    }
+
+    // 4. Fetch from Firestore
+    return await _refreshKlipyApiKeyFromFirestore();
+  }
+
+  static Future<String> _refreshKlipyApiKeyFromFirestore() async {
+    try {
+      final doc = await firestore.collection('config').doc('services').get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        final key = (data['klipy_api_key'] ?? data['klipyApiKey'] ?? '').toString().trim();
+        if (key.isNotEmpty) {
+          _cachedKlipyApiKey = key;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('cached_klipy_api_key', key);
+          return key;
+        }
+      }
+    } catch (e) {
+      log('Error fetching remote KLIPY key: $e');
+    }
+    return _cachedKlipyApiKey ?? '';
+  }
+
   // Cloudinary Configurations
   static const String cloudinaryCloudName = 'a9nbxo3b';
   static const String cloudinaryUploadPreset = 'backspace_app';
@@ -600,20 +717,32 @@ class APIs {
         .snapshots();
   }
 
-  // for sending message
+  // for sending message (with optional quoted reply parameters)
   static Future<void> sendMessage(
-      ChatUser chatUser, String msg, Type type) async {
+    ChatUser chatUser,
+    String msg,
+    Type type, {
+    String? replyToMsg,
+    String? replyToSenderName,
+    String? replyToType,
+    String? replyToMediaUrl,
+  }) async {
     //message sending time (also used as id)
     final time = DateTime.now().millisecondsSinceEpoch.toString();
 
     //message to send
     final Message message = Message(
-        toId: chatUser.id,
-        msg: msg,
-        read: '',
-        type: type,
-        fromId: user.uid,
-        sent: time);
+      toId: chatUser.id,
+      msg: msg,
+      read: '',
+      type: type,
+      fromId: user.uid,
+      sent: time,
+      replyToMsg: replyToMsg,
+      replyToSenderName: replyToSenderName,
+      replyToType: replyToType,
+      replyToMediaUrl: replyToMediaUrl,
+    );
 
     final ref = firestore
         .collection('chats/${getConversationID(chatUser.id)}/messages/');
@@ -657,6 +786,51 @@ class APIs {
         .orderBy('sent', descending: true)
         .limit(1)
         .snapshots();
+  }
+
+  // send chat GIF (direct KLIPY CDN streaming, zero Cloudinary storage)
+  static Future<void> sendChatGif(
+    ChatUser chatUser,
+    GifItem gif, {
+    String? replyToMsg,
+    String? replyToSenderName,
+    String? replyToType,
+    String? replyToMediaUrl,
+  }) async {
+    final time = DateTime.now().millisecondsSinceEpoch.toString();
+    final Message message = Message(
+      toId: chatUser.id,
+      msg: gif.mediaUrl,
+      read: '',
+      type: Type.gif,
+      fromId: user.uid,
+      sent: time,
+      replyToMsg: replyToMsg,
+      replyToSenderName: replyToSenderName,
+      replyToType: replyToType,
+      replyToMediaUrl: replyToMediaUrl,
+      gifId: gif.id,
+      gifProvider: gif.provider,
+      gifPreviewUrl: gif.previewUrl,
+    );
+
+    final ref = firestore
+        .collection('chats/${getConversationID(chatUser.id)}/messages/');
+    await ref.doc(time).set(message.toJson());
+
+    firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('my_users')
+        .doc(chatUser.id)
+        .set({'last_message_time': time}, SetOptions(merge: true));
+
+    firestore
+        .collection('users')
+        .doc(chatUser.id)
+        .collection('my_users')
+        .doc(user.uid)
+        .set({'last_message_time': time}, SetOptions(merge: true));
   }
 
   //send chat image
@@ -1198,8 +1372,16 @@ class APIs {
     }
   }
 
-  // Send message to group
-  static Future<void> sendGroupMessage(GroupChat group, String msg, Type type) async {
+  // Send message to group (with optional quoted reply parameters)
+  static Future<void> sendGroupMessage(
+    GroupChat group,
+    String msg,
+    Type type, {
+    String? replyToMsg,
+    String? replyToSenderName,
+    String? replyToType,
+    String? replyToMediaUrl,
+  }) async {
     try {
       // Membership check: Verify current user is still in group members list
       final doc = await firestore.collection('groups').doc(group.id).get();
@@ -1220,6 +1402,10 @@ class APIs {
         sent: time,
         senderName: me.name,
         senderImage: me.image,
+        replyToMsg: replyToMsg,
+        replyToSenderName: replyToSenderName,
+        replyToType: replyToType,
+        replyToMediaUrl: replyToMediaUrl,
       );
 
       await firestore
@@ -1240,6 +1426,90 @@ class APIs {
       });
     } catch (e) {
       log('Error sendGroupMessage: $e');
+    }
+  }
+
+  // send group GIF (direct KLIPY CDN streaming, zero Cloudinary storage)
+  static Future<void> sendGroupGif(
+    GroupChat group,
+    GifItem gif, {
+    String? replyToMsg,
+    String? replyToSenderName,
+    String? replyToType,
+    String? replyToMediaUrl,
+  }) async {
+    try {
+      final time = DateTime.now().millisecondsSinceEpoch.toString();
+      final message = Message(
+        toId: group.id,
+        msg: gif.mediaUrl,
+        read: '',
+        type: Type.gif,
+        fromId: user.uid,
+        sent: time,
+        senderName: me.name,
+        senderImage: me.image,
+        replyToMsg: replyToMsg,
+        replyToSenderName: replyToSenderName,
+        replyToType: replyToType,
+        replyToMediaUrl: replyToMediaUrl,
+        gifId: gif.id,
+        gifProvider: gif.provider,
+        gifPreviewUrl: gif.previewUrl,
+      );
+
+      await firestore
+          .collection('groups')
+          .doc(group.id)
+          .collection('messages')
+          .doc(time)
+          .set(message.toJson());
+
+      await firestore.collection('groups').doc(group.id).update({
+        'lastMessage': '👾 GIF',
+        'lastMessageTime': time,
+        'lastMessageSenderName': me.name,
+      });
+    } catch (e) {
+      log('Error sendGroupGif: $e');
+    }
+  }
+
+  // Send reply to a story/status as a 1:1 chat message
+  static Future<bool> sendStoryReply({
+    required String storyOwnerId,
+    required String replyText,
+    required String storyCaption,
+    required String storyMediaUrl,
+    required bool isVideo,
+    required bool isText,
+    String? storyOwnerName,
+  }) async {
+    try {
+      ChatUser? recipient = await getUserById(storyOwnerId);
+      if (recipient == null) return false;
+
+      // Make sure contact is in user's my_users list so chat opens in home screen
+      await addChatUser(recipient.email);
+
+      String previewMsg = storyCaption.isNotEmpty
+          ? storyCaption
+          : (isText ? 'Status' : (isVideo ? '🎬 Video Status' : '📷 Photo Status'));
+
+      await sendMessage(
+        recipient,
+        replyText,
+        Type.text,
+        replyToMsg: previewMsg,
+        replyToSenderName: storyOwnerName ?? recipient.name,
+        replyToType: 'story',
+        replyToMediaUrl: storyMediaUrl,
+      );
+
+      return true;
+    } catch (e) {
+      log('Error sendStoryReply: $e');
+      return false;
     }
   }
 

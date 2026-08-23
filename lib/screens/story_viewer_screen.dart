@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:video_player/video_player.dart';
 
@@ -12,7 +13,6 @@ import '../api/apis.dart';
 import '../helper/theme_controller.dart';
 import '../models/chat_user.dart';
 import '../models/story.dart';
-import '../widgets/glass_container.dart';
 
 class StoryViewerScreen extends StatefulWidget {
   final List<UserStoriesGroup> userStoriesGroups;
@@ -40,6 +40,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   bool _isMediaLoaded = false;
   DateTime? _tapDownTime;
 
+  final TextEditingController _replyController = TextEditingController();
+  final FocusNode _replyFocusNode = FocusNode();
+  final ValueNotifier<bool> _hasReplyTextNotifier = ValueNotifier<bool>(false);
+  bool _isSendingReply = false;
+
   UserStoriesGroup get _currentGroup => widget.userStoriesGroups[_currentGroupIndex];
   Story get _currentStory => _currentGroup.stories[_currentStoryIndex];
 
@@ -60,7 +65,40 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       }
     });
 
+    _replyFocusNode.addListener(_onReplyFocusChange);
+    _replyController.addListener(() {
+      final hasText = _replyController.text.trim().isNotEmpty;
+      if (_hasReplyTextNotifier.value != hasText) {
+        _hasReplyTextNotifier.value = hasText;
+      }
+    });
+
     _startStory();
+  }
+
+  void _onReplyFocusChange() {
+    if (_replyFocusNode.hasFocus) {
+      setState(() => _isPaused = true);
+      _animController.stop();
+      _videoController?.pause();
+    } else {
+      if (_isMediaLoaded && !_isHolding && !_isSendingReply) {
+        setState(() => _isPaused = false);
+        _videoController?.play();
+        _animController.forward();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _replyFocusNode.removeListener(_onReplyFocusChange);
+    _hasReplyTextNotifier.dispose();
+    _replyController.dispose();
+    _replyFocusNode.dispose();
+    _disposeVideo();
+    _animController.dispose();
+    super.dispose();
   }
 
   void _disposeVideo() {
@@ -259,13 +297,6 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   }
 
   @override
-  void dispose() {
-    _disposeVideo();
-    _animController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final isMyStory = _currentStory.userId == APIs.user.uid;
 
@@ -379,7 +410,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               Positioned(
                 bottom: isMyStory
                     ? MediaQuery.of(context).padding.bottom + 65.0
-                    : MediaQuery.of(context).padding.bottom + 24.0,
+                    : MediaQuery.of(context).padding.bottom + 75.0,
                 left: 20,
                 right: 20,
                 child: AnimatedOpacity(
@@ -459,6 +490,168 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                   ),
                 ),
               ),
+
+            // Bottom Reply Bar (For Other Users' Stories)
+            if (!isMyStory)
+              _buildStoryReplyBar(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendReply(String text) async {
+    final trimText = text.trim();
+    if (trimText.isEmpty || _isSendingReply) return;
+
+    setState(() => _isSendingReply = true);
+    _replyFocusNode.unfocus();
+    _replyController.clear();
+
+    final success = await APIs.sendStoryReply(
+      storyOwnerId: _currentStory.userId,
+      replyText: trimText,
+      storyCaption: _currentStory.caption,
+      storyMediaUrl: _currentStory.mediaUrl,
+      isVideo: _currentStory.isVideo,
+      isText: _currentStory.isText,
+      storyOwnerName: _currentGroup.userName,
+    );
+
+    if (mounted) {
+      setState(() => _isSendingReply = false);
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Text('Reply sent to story!'),
+              ],
+            ),
+            backgroundColor: Color(0xFF007AFF),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      if (_isMediaLoaded) {
+        setState(() => _isPaused = false);
+        _videoController?.play();
+        _animController.forward();
+      }
+    }
+  }
+
+  Widget _buildStoryReplyBar() {
+    return Positioned(
+      bottom: MediaQuery.of(context).padding.bottom + 8.0,
+      left: 12,
+      right: 12,
+      child: AnimatedOpacity(
+        opacity: _isHolding ? 0.0 : 1.0,
+        duration: const Duration(milliseconds: 180),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Quick Emoji Reaction Row with Haptic Feedback
+            if (!_replyFocusNode.hasFocus)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: ['❤️', '😂', '😮', '😢', '🙏', '🔥'].map((emoji) {
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        _sendReply(emoji);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white24, width: 0.5),
+                        ),
+                        child: Text(
+                          emoji,
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+
+            // Compact Transparent Capsule Input (Chat Screen Style)
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      child: Container(
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.28),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 0.5),
+                        ),
+                        child: Center(
+                          child: TextField(
+                            controller: _replyController,
+                            focusNode: _replyFocusNode,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            cursorColor: const Color(0xFF007AFF),
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: _sendReply,
+                            decoration: InputDecoration(
+                              hintText: 'Reply to ${_currentGroup.userName.isNotEmpty ? _currentGroup.userName : "Status"}...',
+                              hintStyle: const TextStyle(color: Colors.white60, fontSize: 13),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () {
+                    if (_replyController.text.trim().isNotEmpty) {
+                      HapticFeedback.lightImpact();
+                      _sendReply(_replyController.text);
+                    }
+                  },
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _hasReplyTextNotifier,
+                    builder: (context, hasText, _) {
+                      return Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: hasText
+                              ? const Color(0xFF007AFF)
+                              : const Color(0xFF007AFF).withValues(alpha: 0.35),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.arrow_up,
+                          color: Colors.white,
+                          size: 17,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

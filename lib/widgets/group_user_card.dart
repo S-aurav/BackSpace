@@ -152,7 +152,8 @@ class _GroupUserCardState extends State<GroupUserCard> {
             InkWell(
               onTapDown: (details) => tapPos = details.globalPosition,
               onTap: () {
-                FocusScope.of(context).unfocus();
+                FocusScope.of(context).unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
+                FocusManager.instance.primaryFocus?.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => GroupChatScreen(group: group)),

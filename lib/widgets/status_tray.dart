@@ -44,6 +44,8 @@ class StatusTrayWidget extends StatelessWidget {
 
         return GestureDetector(
           onTap: () {
+            FocusScope.of(context).unfocus();
+            FocusManager.instance.primaryFocus?.unfocus();
             if (hasActiveStory) {
               final group = UserStoriesGroup(
                 userId: APIs.user.uid,
@@ -160,6 +162,8 @@ class StatusTrayWidget extends StatelessWidget {
 
         return GestureDetector(
           onTap: () {
+            FocusScope.of(context).unfocus();
+            FocusManager.instance.primaryFocus?.unfocus();
             final group = UserStoriesGroup(
               userId: contact.id,
               userName: contact.name,

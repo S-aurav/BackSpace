@@ -16,6 +16,8 @@ ui-debug.log*
 .env
 *.env
 functions/.env
+scratch/
+klipy*.json
 
 # Android specific
 android/.gradle/

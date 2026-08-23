@@ -12,6 +12,7 @@ import '../models/chat_user.dart';
 import '../models/group.dart';
 import '../widgets/chat_user_card.dart';
 import '../widgets/custom_context_menu_dialog.dart';
+import '../widgets/dialogs/whats_new_dialog.dart';
 import '../widgets/group_user_card.dart';
 import '../widgets/status_tray.dart';
 import 'create_group_screen.dart';
@@ -43,62 +44,36 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     APIs.getSelfInfo();
+    APIs.getKlipyApiKey();
     _myUsersStream = APIs.getMyUsersId();
     _myGroupsStream = APIs.getMyGroups();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAppUpdate());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAppUpdateAndAnnouncements());
   }
 
-  void _checkAppUpdate() async {
+  void _checkAppUpdateAndAnnouncements() async {
     try {
-      final doc = await APIs.firestore.collection('config').doc('app_version').get();
-      log('CheckAppUpdate doc exists: ${doc.exists}, data: ${doc.data()}');
+      // 1. Check for App Update with Release Notes
+      final updateInfo = await APIs.fetchAppUpdateInfo();
+      const currentVersion = '2.0.0';
 
-      if (doc.exists && doc.data() != null) {
-        final rawData = doc.data()!;
-        final Map<String, dynamic> data = {};
-        rawData.forEach((key, value) {
-          data[key.trim()] = value;
-        });
-
-        final latestVersion = (data['latest_version'] ?? data['latestVersion'] ?? '2.0.0').toString().trim();
-        final downloadUrl = (data['download_url'] ?? data['downloadUrl'] ?? 'https://github.com/S-aurav/BackSpace/releases').toString();
-        final forceUpdate = (data['force_update'] ?? data['forceUpdate'] ?? false) as bool;
-
-        // Current app version (from pubspec.yaml)
-        const currentVersion = '2.0.0';
-        log('Comparing versions: latest="$latestVersion", current="$currentVersion"');
-
-        if (latestVersion != currentVersion) {
-          if (!mounted) return;
-          showCupertinoDialog(
-            context: context,
-            barrierDismissible: !forceUpdate,
-            builder: (ctx) => CupertinoAlertDialog(
-              title: const Text('🎉 Update Available!'),
-              content: Text(
-                'Version $latestVersion is now available with new features & performance fixes.\n\nPlease update to get the latest experience!',
-              ),
-              actions: [
-                if (!forceUpdate)
-                  CupertinoDialogAction(
-                    child: const Text('Later'),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                CupertinoDialogAction(
-                  isDefaultAction: true,
-                  child: const Text('Download Update'),
-                  onPressed: () {
-                    if (!forceUpdate) Navigator.pop(ctx);
-                    APIs.openUrl(downloadUrl);
-                  },
-                ),
-              ],
-            ),
-          );
+      if (updateInfo != null && updateInfo.latestVersion != currentVersion) {
+        if (mounted) {
+          WhatsNewDialog.show(context: context, updateInfo: updateInfo);
         }
+        return; // Prioritize app update over general announcements
+      }
+
+      // 2. Check for Public Announcements (if no update dialog shown)
+      final announcement = await APIs.fetchPublicAnnouncement();
+      if (announcement != null && mounted) {
+        AnnouncementDialog.show(
+          context: context,
+          announcement: announcement,
+          onDismiss: () => APIs.dismissAnnouncement(announcement.id),
+        );
       }
     } catch (e) {
-      log('Error checking update: $e');
+      log('Error checking updates or announcements: $e');
     }
   }
 
@@ -117,7 +92,10 @@ class _HomeScreenState extends State<HomeScreen> {
       valueListenable: ThemeController.themeMode,
       builder: (context, mode, child) {
         return GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
+          onTap: () {
+            _searchFocusNode.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
+            FocusScope.of(context).unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
+          },
           child: Scaffold(
             backgroundColor: ThemeController.bgColor,
             extendBodyBehindAppBar: true,
@@ -173,6 +151,9 @@ class _HomeScreenState extends State<HomeScreen> {
               actions: [
                 GestureDetector(
                   onTap: () {
+                    _searchFocusNode.unfocus();
+                    FocusScope.of(context).unfocus();
+                    FocusManager.instance.primaryFocus?.unfocus();
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -258,6 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         return CustomScrollView(
                           physics: const BouncingScrollPhysics(),
+                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                           slivers: [
                             SliverToBoxAdapter(
                               child: SizedBox(height: topPadding),
@@ -277,6 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     controller: _searchController,
                                     focusNode: _searchFocusNode,
                                     style: TextStyle(color: ThemeController.textColor, fontSize: 15),
+                                    onTapOutside: (_) => _searchFocusNode.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild),
                                     onChanged: (val) {
                                       _searchList.clear();
                                       _searchGroupsList.clear();
@@ -510,6 +493,9 @@ class _HomeScreenState extends State<HomeScreen> {
           title: 'New Group Chat',
           icon: CupertinoIcons.person_3_fill,
           onTap: () {
+            _searchFocusNode.unfocus();
+            FocusScope.of(context).unfocus();
+            FocusManager.instance.primaryFocus?.unfocus();
             Navigator.push(
               context,
               MaterialPageRoute(
