@@ -4,7 +4,7 @@
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20FCM-FFCA28?logo=firebase&logoColor=black)](https://firebase.google.com)
 [![Cloudinary](https://img.shields.io/badge/Cloudinary-Media%20CDN-3448C5?logo=cloudinary&logoColor=white)](https://cloudinary.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-brightgreen)](#)
-[![Version](https://img.shields.io/badge/Version-v2.0.0-blue)](#)
+[![Version](https://img.shields.io/badge/Version-v2.1.0-blue)](#)
 
 **BackSpace** is a full-featured, cross-platform real-time messaging application built with **Flutter**, **Firebase**, and **Cloudinary**. BackSpace features instant 1-on-1 messaging, robust group chats, 24-hour expiring status/stories, FCM v1 rich push notifications, WhatsApp-style message edit/delete rules, and automated serverless media lifecycle cleanup.
 

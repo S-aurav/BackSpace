@@ -54,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // 1. Check for App Update with Release Notes
       final updateInfo = await APIs.fetchAppUpdateInfo();
-      const currentVersion = '2.0.0';
+      const currentVersion = '2.1.0';
 
       if (updateInfo != null && updateInfo.latestVersion != currentVersion) {
         if (mounted) {
