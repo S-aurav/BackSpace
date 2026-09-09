@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../api/apis.dart';
 import '../../helper/theme_controller.dart';
 import '../../models/app_config_models.dart';
+import '../adaptive_blur.dart';
 
 class WhatsNewDialog {
   static void show({
@@ -24,11 +25,10 @@ class WhatsNewDialog {
         child: Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: ClipRRect(
+          child: AdaptiveBlur(
             borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-              child: Container(
+            sigma: 25,
+            child: Container(
                 constraints: const BoxConstraints(maxWidth: 380),
                 decoration: BoxDecoration(
                   color: ThemeController.cardColor.withValues(alpha: 0.92),
@@ -225,8 +225,7 @@ class WhatsNewDialog {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -245,11 +244,10 @@ class AnnouncementDialog {
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: ClipRRect(
+        child: AdaptiveBlur(
           borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-            child: Container(
+          sigma: 25,
+          child: Container(
               constraints: const BoxConstraints(maxWidth: 380),
               decoration: BoxDecoration(
                 color: ThemeController.cardColor.withValues(alpha: 0.94),
@@ -386,7 +384,6 @@ class AnnouncementDialog {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
@@ -162,11 +161,13 @@ class KlipyGifService implements GifRepository {
       final prefs = await SharedPreferences.getInstance();
       final rawJson = prefs.getString('$_prefPrefix$cacheKey');
       if (rawJson != null) {
-        // Offload JSON decoding and object mapping to worker Isolate
-        final entry = await Isolate.run(() {
-          final decoded = jsonDecode(rawJson) as Map<String, dynamic>;
-          return _CacheEntry.fromJson(decoded);
-        });
+        // Offload JSON decoding and object mapping to worker Isolate on native, parse directly on web
+        final entry = kIsWeb
+            ? _CacheEntry.fromJson(jsonDecode(rawJson) as Map<String, dynamic>)
+            : await Isolate.run(() {
+                final decoded = jsonDecode(rawJson) as Map<String, dynamic>;
+                return _CacheEntry.fromJson(decoded);
+              });
 
         // Put back into memory cache
         _memCache[cacheKey] = entry;
@@ -187,9 +188,11 @@ class KlipyGifService implements GifRepository {
     final entry = _CacheEntry(cachedAt: DateTime.now(), items: items);
     _memCache[cacheKey] = entry;
 
-    // Asynchronously encode in worker Isolate & persist to SharedPreferences
+    // Asynchronously encode in worker Isolate on native & persist to SharedPreferences
     try {
-      final encoded = await Isolate.run(() => jsonEncode(entry.toJson()));
+      final encoded = kIsWeb
+          ? jsonEncode(entry.toJson())
+          : await Isolate.run(() => jsonEncode(entry.toJson()));
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('$_prefPrefix$cacheKey', encoded);
 
@@ -240,23 +243,22 @@ class KlipyGifService implements GifRepository {
     try {
       final response = await http.get(uri, headers: {
         'Accept': 'application/json',
-        'User-Agent': 'BackSpace/2.1.0',
+        if (!kIsWeb) 'User-Agent': 'BackSpace/2.1.0',
       }).timeout(const Duration(seconds: 25));
 
       debugPrint('[KLIPY API] ← ${response.statusCode} (${response.body.length} bytes)');
 
       if (response.statusCode == 200) {
-        // Offload heavy JSON parsing and model extraction to background worker Isolate
-        final items = await Isolate.run(() => _parseKlipyJsonInWorker(response.body));
-        debugPrint('[KLIPY API] (Worker Isolate) successfully parsed ${items.length} items');
+        // Offload heavy JSON parsing on native, parse directly on web
+        final items = kIsWeb
+            ? _parseKlipyJsonInWorker(response.body)
+            : await Isolate.run(() => _parseKlipyJsonInWorker(response.body));
+        debugPrint('[KLIPY API] successfully parsed ${items.length} items');
         return items;
       } else {
         debugPrint('[KLIPY API] error ${response.statusCode}');
         return [];
       }
-    } on SocketException catch (e) {
-      debugPrint('[KLIPY API] SocketException: $e');
-      return [];
     } on TimeoutException catch (e) {
       debugPrint('[KLIPY API] TimeoutException: $e');
       return [];

@@ -1,5 +1,7 @@
-import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import 'adaptive_blur.dart';
 
 class GlassContainer extends StatelessWidget {
   final Widget child;
@@ -48,31 +50,31 @@ class GlassContainer extends StatelessWidget {
           ),
         ],
       ),
-      child: ClipRRect(
+      child: AdaptiveBlur(
         borderRadius: defaultRadius,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: opacity),
-              borderRadius: defaultRadius,
-              border: border ??
-                  Border.all(
-                    color: Colors.white.withValues(alpha: 0.35),
-                    width: 1.5,
+        sigma: blur,
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: kIsWeb ? color.withValues(alpha: 0.95) : color.withValues(alpha: opacity),
+            borderRadius: defaultRadius,
+            border: border ??
+                Border.all(
+                  color: Colors.white.withValues(alpha: kIsWeb ? 0.15 : 0.35),
+                  width: 1.5,
+                ),
+            gradient: kIsWeb
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color.withValues(alpha: opacity + 0.15),
+                      color.withValues(alpha: opacity * 0.5),
+                    ],
                   ),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  color.withValues(alpha: opacity + 0.15),
-                  color.withValues(alpha: opacity * 0.5),
-                ],
-              ),
-            ),
-            child: child,
           ),
+          child: child,
         ),
       ),
     );

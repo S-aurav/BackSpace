@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
@@ -584,6 +585,11 @@ class _MessageCardState extends State<MessageCard> {
             title: 'Save to Photos',
             icon: CupertinoIcons.arrow_down_to_line,
             onTap: () async {
+              if (kIsWeb) {
+                APIs.openUrl(widget.message.msg);
+                if (mounted) Dialogs.showSnackbar(context, 'Opening image in new tab...');
+                return;
+              }
               try {
                 await Gal.putImage(widget.message.msg);
                 if (mounted) Dialogs.showSnackbar(context, 'Image Saved!');
@@ -597,6 +603,11 @@ class _MessageCardState extends State<MessageCard> {
             title: 'Save to Photos',
             icon: CupertinoIcons.arrow_down_to_line,
             onTap: () async {
+              if (kIsWeb) {
+                APIs.openUrl(widget.message.msg);
+                if (mounted) Dialogs.showSnackbar(context, 'Opening video in new tab...');
+                return;
+              }
               try {
                 final tempDir = await getTemporaryDirectory();
                 final ext = widget.message.msg.split('.').last.split('?').first;

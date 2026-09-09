@@ -13,6 +13,7 @@ import '../api/apis.dart';
 import '../helper/dialogs.dart';
 import '../helper/theme_controller.dart';
 import '../main.dart';
+import '../widgets/adaptive_blur.dart';
 import 'auth/login_screen.dart';
 import 'profile_screen.dart';
 
@@ -39,17 +40,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             toolbarHeight: 56,
             backgroundColor: Colors.transparent,
             elevation: 0,
-            flexibleSpace: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: ThemeController.headerColor.withValues(alpha: 0.55),
-                    border: Border(
-                      bottom: BorderSide(
-                        color: ThemeController.dividerColor.withValues(alpha: 0.4),
-                        width: 0.5,
-                      ),
+            flexibleSpace: AdaptiveBlur(
+              sigmaX: 30,
+              sigmaY: 30,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: ThemeController.headerColor.withValues(alpha: ThemeController.headerAlpha),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: ThemeController.dividerColor.withValues(alpha: 0.4),
+                      width: 0.5,
                     ),
                   ),
                 ),
@@ -81,13 +81,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Frosted Profile Section Card
-                ClipRRect(
+                AdaptiveBlur(
                   borderRadius: BorderRadius.circular(18),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: ThemeController.cardColor.withValues(alpha: isDark ? 0.75 : 0.85),
+                  sigmaX: 20,
+                  sigmaY: 20,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: ThemeController.cardColor.withValues(alpha: ThemeController.cardAlpha),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
                           color: ThemeController.dividerColor.withValues(alpha: 0.35),
@@ -162,7 +162,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
-                ),
 
                 const SizedBox(height: 24),
 
@@ -179,36 +178,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
-                ClipRRect(
+                AdaptiveBlur(
                   borderRadius: BorderRadius.circular(16),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: ThemeController.cardColor.withValues(alpha: isDark ? 0.75 : 0.85),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: ThemeController.dividerColor.withValues(alpha: 0.35),
-                          width: 0.5,
+                  sigmaX: 20,
+                  sigmaY: 20,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: ThemeController.cardColor.withValues(alpha: ThemeController.cardAlpha),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: ThemeController.dividerColor.withValues(alpha: 0.35),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(CupertinoIcons.moon_stars_fill, color: Color(0xFF5856D6)),
+                      title: Text(
+                        'Dark Mode',
+                        style: TextStyle(
+                          color: ThemeController.textColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      child: ListTile(
-                        leading: const Icon(CupertinoIcons.moon_stars_fill, color: Color(0xFF5856D6)),
-                        title: Text(
-                          'Dark Mode',
-                          style: TextStyle(
-                            color: ThemeController.textColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        trailing: CupertinoSwitch(
-                          activeTrackColor: const Color(0xFF34C759),
-                          value: isDark,
-                          onChanged: (val) {
-                            ThemeController.toggleTheme(val);
-                          },
-                        ),
+                      trailing: CupertinoSwitch(
+                        activeTrackColor: const Color(0xFF34C759),
+                        value: isDark,
+                        onChanged: (val) {
+                          ThemeController.toggleTheme(val);
+                        },
                       ),
                     ),
                   ),
@@ -217,50 +215,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // Frosted Glass "Sign Out" Destructive Button
-                ClipRRect(
+                AdaptiveBlur(
                   borderRadius: BorderRadius.circular(16),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () async {
-                          Dialogs.showProgressBar(context);
-                          await APIs.updateActiveStatus(false);
+                  sigmaX: 20,
+                  sigmaY: 20,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () async {
+                        Dialogs.showProgressBar(context);
+                        await APIs.updateActiveStatus(false);
 
-                          await APIs.auth.signOut().then((value) async {
-                            await GoogleSignIn().signOut().then((value) {
-                              Navigator.pop(context);
-                              Navigator.pop(context);
-                              APIs.auth = FirebaseAuth.instance;
+                        await APIs.auth.signOut().then((value) async {
+                          await GoogleSignIn().signOut().then((value) {
+                            Navigator.pop(context);
+                            Navigator.pop(context);
+                            APIs.auth = FirebaseAuth.instance;
 
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                              );
-                            });
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            );
                           });
-                        },
-                        child: Container(
-                          width: double.infinity,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: ThemeController.cardColor.withValues(alpha: isDark ? 0.7 : 0.8),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.redAccent.withValues(alpha: 0.25),
-                              width: 0.5,
-                            ),
+                        });
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: ThemeController.cardColor.withValues(alpha: ThemeController.cardAlpha),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.redAccent.withValues(alpha: 0.25),
+                            width: 0.5,
                           ),
-                          child: const Center(
-                            child: Text(
-                              'Sign Out',
-                              style: TextStyle(
-                                color: Colors.redAccent,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Sign Out',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),

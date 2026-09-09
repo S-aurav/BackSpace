@@ -10,6 +10,7 @@ import '../helper/dialogs.dart';
 import '../helper/theme_controller.dart';
 import '../models/chat_user.dart';
 import '../models/group.dart';
+import '../widgets/adaptive_blur.dart';
 import '../widgets/chat_user_card.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/dialogs/whats_new_dialog.dart';
@@ -106,17 +107,15 @@ class _HomeScreenState extends State<HomeScreen> {
               automaticallyImplyLeading: false,
               backgroundColor: Colors.transparent,
               elevation: 0,
-              flexibleSpace: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: ThemeController.headerColor.withValues(alpha: 0.55),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: ThemeController.dividerColor.withValues(alpha: 0.4),
-                          width: 0.5,
-                        ),
+              flexibleSpace: AdaptiveBlur(
+                sigma: 30,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: ThemeController.headerColor.withValues(alpha: ThemeController.headerAlpha),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: ThemeController.dividerColor.withValues(alpha: 0.4),
+                        width: 0.5,
                       ),
                     ),
                   ),

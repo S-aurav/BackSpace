@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -28,6 +29,10 @@ class ThemeController {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_themeKey, enableDark);
   }
+
+  // Web vs Native Opacity helpers (solid on Web to avoid expensive blur overhead)
+  static double get headerAlpha => kIsWeb ? 0.98 : 0.55;
+  static double get cardAlpha => kIsWeb ? 1.0 : (isDark ? 0.75 : 0.85);
 
   // Dynamic Theme Colors
   static Color get bgColor => isDark ? Colors.black : const Color(0xFFF2F2F7);

@@ -1,6 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'dart:io';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -15,6 +14,7 @@ import '../helper/my_date_util.dart';
 import '../helper/theme_controller.dart';
 import '../models/chat_user.dart';
 import '../models/group.dart';
+import '../widgets/adaptive_blur.dart';
 import '../widgets/add_group_members_sheet.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/full_screen_image_viewer.dart';
@@ -73,12 +73,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             toolbarHeight: 56,
             backgroundColor: Colors.transparent,
             elevation: 0,
-            flexibleSpace: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: ThemeController.headerColor.withValues(alpha: 0.55),
+            flexibleSpace: AdaptiveBlur(
+              sigma: 30,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: ThemeController.headerColor.withValues(alpha: ThemeController.headerAlpha),
                     border: Border(
                       bottom: BorderSide(
                         color: ThemeController.dividerColor.withValues(alpha: 0.4),
@@ -88,7 +87,6 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                   ),
                 ),
               ),
-            ),
             leading: GestureDetector(
               onTap: () => Navigator.pop(context),
               child: const Row(
@@ -221,15 +219,14 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                 // Group Description Card (Editable by all Members)
                 GestureDetector(
                   onTap: isMember ? _showEditDescriptionDialog : null,
-                  child: ClipRRect(
+                  child: AdaptiveBlur(
                     borderRadius: BorderRadius.circular(16),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: ThemeController.cardColor.withValues(alpha: isDark ? 0.75 : 0.85),
+                    sigma: 20,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: ThemeController.cardColor.withValues(alpha: ThemeController.cardAlpha),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: ThemeController.dividerColor.withValues(alpha: 0.35),
@@ -273,18 +270,16 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                       ),
                     ),
                   ),
-                ),
 
                 const SizedBox(height: 16),
 
                 // Mute Notifications Settings Tile
-                ClipRRect(
+                AdaptiveBlur(
                   borderRadius: BorderRadius.circular(16),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: ThemeController.cardColor.withValues(alpha: isDark ? 0.75 : 0.85),
+                  sigma: 20,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: ThemeController.cardColor.withValues(alpha: ThemeController.cardAlpha),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: ThemeController.dividerColor.withValues(alpha: 0.35),
@@ -327,7 +322,6 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                       ),
                     ),
                   ),
-                ),
 
                 const SizedBox(height: 24),
 
@@ -367,13 +361,12 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                 const SizedBox(height: 8),
 
                 // Members List Container
-                ClipRRect(
+                AdaptiveBlur(
                   borderRadius: BorderRadius.circular(16),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: ThemeController.cardColor.withValues(alpha: isDark ? 0.75 : 0.85),
+                  sigma: 20,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: ThemeController.cardColor.withValues(alpha: ThemeController.cardAlpha),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: ThemeController.dividerColor.withValues(alpha: 0.35),
@@ -526,9 +519,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                       );
                     },
                   ),
-                    ),
-                  ),
                 ),
+              ),
 
                 const SizedBox(height: 28),
 
@@ -624,7 +616,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (image != null) {
       Dialogs.showProgressBar(context);
-      await APIs.updateGroupInfo(_group, _group.name, _group.description, File(image.path));
+      await APIs.updateGroupInfo(_group, _group.name, _group.description, image);
       Navigator.pop(context);
       Dialogs.showSnackbar(context, 'Group photo updated');
       setState(() {});

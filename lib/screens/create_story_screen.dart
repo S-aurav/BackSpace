@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
@@ -10,6 +11,7 @@ import 'package:video_player/video_player.dart';
 import '../api/apis.dart';
 import '../helper/dialogs.dart';
 import '../helper/theme_controller.dart';
+import '../widgets/adaptive_blur.dart';
 
 /// Clean, beautiful, modern iOS-style Status/Story Creator.
 /// Supports rich gradient Text Statuses, Photos, and Videos (up to 100MB native quality).
@@ -23,6 +25,8 @@ class CreateStoryScreen extends StatefulWidget {
 class _CreateStoryScreenState extends State<CreateStoryScreen> {
   bool _isTextStory = true;
   File? _mediaFile;
+  XFile? _mediaXFile;
+  Uint8List? _mediaBytes;
   bool _isVideo = false;
   VideoPlayerController? _videoPlayerController;
 
@@ -73,12 +77,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             automaticallyImplyLeading: false,
             backgroundColor: Colors.transparent,
             elevation: 0,
-            flexibleSpace: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.35),
-                ),
+            flexibleSpace: AdaptiveBlur(
+              sigmaX: 25,
+              sigmaY: 25,
+              child: Container(
+                color: Colors.black.withValues(alpha: kIsWeb ? 0.85 : 0.35),
               ),
             ),
             leading: IconButton(
@@ -204,22 +207,21 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       (MediaQuery.of(context).viewInsets.bottom > 0 ? 12 : MediaQuery.of(context).padding.bottom + 16),
                   left: 16,
                   right: 16,
-                  child: ClipRRect(
+                  child: AdaptiveBlur(
                     borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            width: 0.5,
-                          ),
+                    sigmaX: 20,
+                    sigmaY: 20,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: kIsWeb ? 0.9 : 0.45),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 0.5,
                         ),
-                        child: _isTextStory ? _buildGradientChips() : _buildMediaControls(),
                       ),
+                      child: _isTextStory ? _buildGradientChips() : _buildMediaControls(),
                     ),
                   ),
                 ),
@@ -276,7 +278,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
   // Photo / Video Status Canvas
   Widget _buildMediaStoryView(Size mq) {
-    if (_mediaFile != null) {
+    if (_mediaBytes != null || _mediaFile != null || _mediaXFile != null) {
       if (_isVideo && _videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
         return Container(
           width: double.infinity,
@@ -294,7 +296,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           width: double.infinity,
           height: double.infinity,
           color: Colors.black,
-          child: Image.file(_mediaFile!, fit: BoxFit.contain),
+          child: _mediaBytes != null
+              ? Image.memory(_mediaBytes!, fit: BoxFit.contain)
+              : (_mediaFile != null
+                  ? Image.file(_mediaFile!, fit: BoxFit.contain)
+                  : const SizedBox.shrink()),
         );
       }
     }
@@ -496,8 +502,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     final image = await picker.pickImage(source: source, imageQuality: 85);
     if (image != null) {
       _disposeVideoPlayer();
+      final bytes = await image.readAsBytes();
       setState(() {
-        _mediaFile = File(image.path);
+        _mediaXFile = image;
+        _mediaBytes = bytes;
+        if (!kIsWeb) _mediaFile = File(image.path);
         _isVideo = false;
       });
     }
@@ -507,8 +516,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     final picker = ImagePicker();
     final video = await picker.pickVideo(source: source);
     if (video != null) {
-      final file = File(video.path);
-      final sizeInBytes = await file.length();
+      final sizeInBytes = await video.length();
       final sizeInMB = sizeInBytes / (1024 * 1024);
       log('Picked video for story size: ${sizeInMB.toStringAsFixed(2)}MB');
 
@@ -524,15 +532,21 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       }
 
       _disposeVideoPlayer();
-      _videoPlayerController = VideoPlayerController.file(file)
-        ..initialize().then((_) {
+      if (kIsWeb) {
+        _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(video.path));
+      } else {
+        _videoPlayerController = VideoPlayerController.file(File(video.path));
+      }
+      _videoPlayerController!
+        .initialize().then((_) {
           _videoPlayerController!.setLooping(true);
           _videoPlayerController!.play();
           if (mounted) setState(() {});
         });
 
       setState(() {
-        _mediaFile = file;
+        _mediaXFile = video;
+        if (!kIsWeb) _mediaFile = File(video.path);
         _isVideo = true;
       });
     }
@@ -558,13 +572,14 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         }
       }
     } else {
-      if (_mediaFile == null) {
+      final mediaToUpload = _mediaXFile ?? _mediaFile;
+      if (mediaToUpload == null) {
         Dialogs.showSnackbar(context, 'Please select a photo or video first');
         return;
       }
       setState(() => _isUploading = true);
       final success = await APIs.uploadStoryMedia(
-        _mediaFile!,
+        mediaToUpload,
         _captionController.text.trim(),
         isVideo: _isVideo,
       );

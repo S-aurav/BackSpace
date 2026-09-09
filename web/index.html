@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="BackSpace — Real-Time Chat & Group Messaging App">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+  <!-- iOS PWA Meta Tags & Fullscreen Capability -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BackSpace">
+  <meta name="theme-color" content="#007AFF">
+
+  <!-- Apple Touch Icons for iOS Home Screen -->
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/Icon-512.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>BackSpace</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #000000;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      height: 100vh;
+      width: 100vw;
+    }
+    #pwa-splash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #000000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.4s ease-out;
+    }
+    #pwa-splash img {
+      width: 100px;
+      height: 100px;
+      border-radius: 24px;
+      box-shadow: 0 10px 30px rgba(0, 122, 255, 0.35);
+      animation: pulse 1.8s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.96); opacity: 0.85; }
+      50% { transform: scale(1.04); opacity: 1; }
+      100% { transform: scale(0.96); opacity: 0.85; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Native-feeling dark splash for iOS home screen launch -->
+  <div id="pwa-splash">
+    <img src="favicon.png" alt="BackSpace">
+  </div>
+
+  <script>
+    window.addEventListener('flutter-first-frame', function() {
+      var splash = document.getElementById('pwa-splash');
+      if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(function() { splash.remove(); }, 400);
+      }
+    });
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

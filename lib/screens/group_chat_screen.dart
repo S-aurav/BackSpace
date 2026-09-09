@@ -2,12 +2,14 @@
 
 import 'dart:developer';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -20,6 +22,7 @@ import '../main.dart';
 import '../models/chat_user.dart';
 import '../models/group.dart';
 import '../models/message.dart';
+import '../widgets/adaptive_blur.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/gif_picker_sheet.dart';
 import '../widgets/group_message_card.dart';
@@ -122,17 +125,15 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 flexibleSpace: RepaintBoundary(
-                  child: ClipRect(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: ThemeController.headerColor.withValues(alpha: 0.55),
-                          border: Border(
-                            bottom: BorderSide(
-                              color: ThemeController.dividerColor.withValues(alpha: 0.4),
-                              width: 0.5,
-                            ),
+                  child: AdaptiveBlur(
+                    sigma: 30,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: ThemeController.headerColor.withValues(alpha: ThemeController.headerAlpha),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: ThemeController.dividerColor.withValues(alpha: 0.4),
+                            width: 0.5,
                           ),
                         ),
                       ),
@@ -246,7 +247,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                   config: Config(
                                     bgColor: ThemeController.bgColor,
                                     columns: 8,
-                                    emojiSizeMax: 32 * (Platform.isIOS ? 1.30 : 1.0),
+                                    emojiSizeMax: 32 * ((!kIsWeb && Platform.isIOS) ? 1.30 : 1.0),
                                     indicatorColor: const Color(0xFF007AFF),
                                     iconColorSelected: const Color(0xFF007AFF),
                                     iconColor: ThemeController.subtextColor,
@@ -643,7 +644,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                           if (image != null) {
                             log('Image Path: ${image.path}');
                             setState(() => _isUploading = true);
-                            await APIs.sendGroupImage(_currentGroup, File(image.path));
+                            await APIs.sendGroupImage(_currentGroup, image);
                             setState(() => _isUploading = false);
                           }
                         },
@@ -761,7 +762,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             for (var i in images) {
               log('Image Path: ${i.path}');
               setState(() => _isUploading = true);
-              await APIs.sendGroupImage(_currentGroup, File(i.path));
+              await APIs.sendGroupImage(_currentGroup, i);
               setState(() => _isUploading = false);
             }
           },
@@ -775,7 +776,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             if (image != null) {
               log('Image Path: ${image.path}');
               setState(() => _isUploading = true);
-              await APIs.sendGroupImage(_currentGroup, File(image.path));
+              await APIs.sendGroupImage(_currentGroup, image);
               setState(() => _isUploading = false);
             }
           },
@@ -787,7 +788,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             final picker = ImagePicker();
             final XFile? video = await picker.pickVideo(source: ImageSource.gallery);
             if (video != null) {
-              await _handleVideoSelection(File(video.path));
+              await _handleVideoSelection(video);
             }
           },
         ),
@@ -798,7 +799,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             final picker = ImagePicker();
             final XFile? video = await picker.pickVideo(source: ImageSource.camera);
             if (video != null) {
-              await _handleVideoSelection(File(video.path));
+              await _handleVideoSelection(video);
             }
           },
         ),
@@ -807,9 +808,16 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   }
 
   // Handle video size validation (50MB limit) and upload
-  Future<void> _handleVideoSelection(File videoFile) async {
+  Future<void> _handleVideoSelection(dynamic videoFile) async {
     try {
-      final sizeInBytes = await videoFile.length();
+      int sizeInBytes = 0;
+      if (videoFile is XFile) {
+        sizeInBytes = await videoFile.length();
+      } else if (videoFile is File) {
+        sizeInBytes = await videoFile.length();
+      } else if (videoFile is Uint8List) {
+        sizeInBytes = videoFile.lengthInBytes;
+      }
       final sizeInMB = sizeInBytes / (1024 * 1024);
       log('Selected group video size: ${sizeInMB.toStringAsFixed(2)}MB');
 

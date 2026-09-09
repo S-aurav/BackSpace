@@ -2,18 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_compress/video_compress.dart';
-
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_config_models.dart';
 import '../models/chat_user.dart';
@@ -619,14 +619,40 @@ class APIs {
     });
   }
 
-  // update profile picture of user
-  static Future<void> updateProfilePicture(File file) async {
-    final ext = file.path.split('.').last;
-    log('Updating profile picture with Cloudinary, extension: $ext');
+  // Cross-platform byte extractor supporting File (mobile), XFile (web/mobile), and raw Uint8List
+  static Future<Uint8List?> _extractBytes(dynamic media) async {
+    if (media == null) return null;
+    if (media is Uint8List) return media;
+    if (media is XFile) return await media.readAsBytes();
+    if (media is File) return await media.readAsBytes();
+    return null;
+  }
+
+  // Extracts filename safely across platforms
+  static String _extractName(dynamic media, String defaultPrefix, String defaultExt) {
+    if (media is XFile && media.name.isNotEmpty) {
+      return '${defaultPrefix}_${DateTime.now().millisecondsSinceEpoch}_${media.name}';
+    }
+    if (media is File) {
+      final ext = media.path.split('.').last;
+      return '${defaultPrefix}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    }
+    return '${defaultPrefix}_${DateTime.now().millisecondsSinceEpoch}.$defaultExt';
+  }
+
+  // update profile picture of user (cross-platform)
+  static Future<void> updateProfilePicture(dynamic media) async {
+    final bytes = await _extractBytes(media);
+    if (bytes == null) {
+      log('Failed to extract bytes for profile picture');
+      return;
+    }
+    final filename = _extractName(media, 'profile_${user.uid}', 'jpg');
+    log('Updating profile picture with Cloudinary, filename: $filename');
 
     final cloudinaryUrl = await uploadToCloudinary(
-      file: file,
-      filename: 'profile_${user.uid}.$ext',
+      bytes: bytes,
+      filename: filename,
       resourceType: 'image',
     );
 
@@ -833,13 +859,15 @@ class APIs {
         .set({'last_message_time': time}, SetOptions(merge: true));
   }
 
-  //send chat image
-  static Future<void> sendChatImage(ChatUser chatUser, File file) async {
-    final ext = file.path.split('.').last;
+  //send chat image (cross-platform)
+  static Future<void> sendChatImage(ChatUser chatUser, dynamic media) async {
+    final bytes = await _extractBytes(media);
+    if (bytes == null) return;
+    final filename = _extractName(media, 'chat', 'jpg');
 
     final cloudinaryUrl = await uploadToCloudinary(
-      file: file,
-      filename: 'chat_${DateTime.now().millisecondsSinceEpoch}.$ext',
+      bytes: bytes,
+      filename: filename,
       resourceType: 'image',
     );
 
@@ -850,43 +878,51 @@ class APIs {
     }
   }
 
-  //send chat video with WhatsApp-style compression and quality retention
-  static Future<void> sendChatVideo(ChatUser chatUser, File file) async {
-    File uploadFile = file;
+  //send chat video with WhatsApp-style compression and quality retention (cross-platform)
+  static Future<void> sendChatVideo(ChatUser chatUser, dynamic media) async {
+    Uint8List? uploadBytes;
+    String filename = _extractName(media, 'video', 'mp4');
 
-    try {
-      final originalSize = (await file.length()) / (1024 * 1024);
-      log('Original video size: ${originalSize.toStringAsFixed(2)}MB');
+    if (!kIsWeb && media is File) {
+      File uploadFile = media;
+      try {
+        final originalSize = (await media.length()) / (1024 * 1024);
+        log('Original video size: ${originalSize.toStringAsFixed(2)}MB');
 
-      // WhatsApp-style compression: 720p HD, high bitrate quality, standard AAC audio
-      final mediaInfo = await VideoCompress.compressVideo(
-        file.path,
-        quality: VideoQuality.MediumQuality,
-        deleteOrigin: false,
-        includeAudio: true,
-      );
+        // WhatsApp-style compression: 720p HD, high bitrate quality, standard AAC audio
+        final mediaInfo = await VideoCompress.compressVideo(
+          media.path,
+          quality: VideoQuality.MediumQuality,
+          deleteOrigin: false,
+          includeAudio: true,
+        );
 
-      if (mediaInfo != null && mediaInfo.file != null) {
-        final compressedSize = (await mediaInfo.file!.length()) / (1024 * 1024);
-        log('Compressed video size: ${compressedSize.toStringAsFixed(2)}MB (Saved ${(100 - (compressedSize / originalSize * 100)).toStringAsFixed(1)}%)');
-        uploadFile = mediaInfo.file!;
+        if (mediaInfo != null && mediaInfo.file != null) {
+          final compressedSize = (await mediaInfo.file!.length()) / (1024 * 1024);
+          log('Compressed video size: ${compressedSize.toStringAsFixed(2)}MB (Saved ${(100 - (compressedSize / originalSize * 100)).toStringAsFixed(1)}%)');
+          uploadFile = mediaInfo.file!;
+        }
+      } catch (e) {
+        log('Video compression exception, proceeding with original file: $e');
       }
-    } catch (e) {
-      log('Video compression exception, proceeding with original file: $e');
+
+      uploadBytes = await uploadFile.readAsBytes();
+
+      // Clean up temporary local compression cache
+      try {
+        await VideoCompress.deleteAllCache();
+      } catch (_) {}
+    } else {
+      uploadBytes = await _extractBytes(media);
     }
 
-    final ext = uploadFile.path.split('.').last;
+    if (uploadBytes == null) return;
 
     final cloudinaryUrl = await uploadToCloudinary(
-      file: uploadFile,
-      filename: 'video_${DateTime.now().millisecondsSinceEpoch}.$ext',
+      bytes: uploadBytes,
+      filename: filename,
       resourceType: 'video',
     );
-
-    // Clean up temporary local compression cache
-    try {
-      await VideoCompress.deleteAllCache();
-    } catch (_) {}
 
     if (cloudinaryUrl != null) {
       await sendMessage(chatUser, cloudinaryUrl, Type.video);
@@ -1149,14 +1185,17 @@ class APIs {
 
   ///************** Story / Status Related APIs **************
 
-  // Upload photo or video story to Cloudinary (native quality, up to 100MB) and save to Firestore
-  static Future<bool> uploadStoryMedia(File file, String caption, {bool isVideo = false}) async {
+  // Upload photo or video story to Cloudinary (native quality, up to 100MB) and save to Firestore (cross-platform)
+  static Future<bool> uploadStoryMedia(dynamic media, String caption, {bool isVideo = false}) async {
     try {
-      final ext = file.path.split('.').last;
+      final bytes = await _extractBytes(media);
+      if (bytes == null) return false;
+
       final now = DateTime.now().millisecondsSinceEpoch;
+      final filename = _extractName(media, 'story_${user.uid}_$now', isVideo ? 'mp4' : 'jpg');
       final cloudinaryUrl = await uploadToCloudinary(
-        file: file,
-        filename: 'story_${user.uid}_$now.$ext',
+        bytes: bytes,
+        filename: filename,
         resourceType: isVideo ? 'video' : 'image',
       );
 
@@ -1288,7 +1327,7 @@ class APIs {
     required String name,
     required String description,
     required List<String> memberIds,
-    File? imageFile,
+    dynamic imageFile,
   }) async {
     try {
       final time = DateTime.now().millisecondsSinceEpoch.toString();
@@ -1296,12 +1335,15 @@ class APIs {
 
       String imageUrl = '';
       if (imageFile != null) {
-        imageUrl = await uploadToCloudinary(
-              file: imageFile,
-              filename: 'group_$groupId.jpg',
-              resourceType: 'image',
-            ) ??
-            '';
+        final bytes = await _extractBytes(imageFile);
+        if (bytes != null) {
+          imageUrl = await uploadToCloudinary(
+                bytes: bytes,
+                filename: 'group_$groupId.jpg',
+                resourceType: 'image',
+              ) ??
+              '';
+        }
       }
 
       // Ensure current user is included in members and admins
@@ -1513,11 +1555,14 @@ class APIs {
     }
   }
 
-  // Send image to group
-  static Future<void> sendGroupImage(GroupChat group, File file) async {
+  // Send image to group (cross-platform: File, XFile, or Uint8List)
+  static Future<void> sendGroupImage(GroupChat group, dynamic file) async {
+    final bytes = await _extractBytes(file);
+    if (bytes == null) return;
+    final filename = _extractName(file, 'group_${group.id}_${DateTime.now().millisecondsSinceEpoch}', 'jpg');
     final imageUrl = await uploadToCloudinary(
-      file: file,
-      filename: 'group_${group.id}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      bytes: bytes,
+      filename: filename,
       resourceType: 'image',
     );
     if (imageUrl != null) {
@@ -1525,11 +1570,14 @@ class APIs {
     }
   }
 
-  // Send video to group
-  static Future<void> sendGroupVideo(GroupChat group, File file) async {
+  // Send video to group (cross-platform: File, XFile, or Uint8List)
+  static Future<void> sendGroupVideo(GroupChat group, dynamic file) async {
+    final bytes = await _extractBytes(file);
+    if (bytes == null) return;
+    final filename = _extractName(file, 'group_${group.id}_${DateTime.now().millisecondsSinceEpoch}', 'mp4');
     final videoUrl = await uploadToCloudinary(
-      file: file,
-      filename: 'group_${group.id}_${DateTime.now().millisecondsSinceEpoch}.mp4',
+      bytes: bytes,
+      filename: filename,
       resourceType: 'video',
     );
     if (videoUrl != null) {
@@ -1537,17 +1585,21 @@ class APIs {
     }
   }
 
-  // Update group info
-  static Future<void> updateGroupInfo(GroupChat group, String name, String description, File? newImage) async {
+  // Update group info (cross-platform: File, XFile, or Uint8List for newImage)
+  static Future<void> updateGroupInfo(GroupChat group, String name, String description, dynamic newImage) async {
     try {
       String imageUrl = group.image;
       if (newImage != null) {
-        final uploaded = await uploadToCloudinary(
-          file: newImage,
-          filename: 'group_${group.id}_${DateTime.now().millisecondsSinceEpoch}.jpg',
-          resourceType: 'image',
-        );
-        if (uploaded != null) imageUrl = uploaded;
+        final bytes = await _extractBytes(newImage);
+        if (bytes != null) {
+          final filename = _extractName(newImage, 'group_${group.id}_${DateTime.now().millisecondsSinceEpoch}', 'jpg');
+          final uploaded = await uploadToCloudinary(
+            bytes: bytes,
+            filename: filename,
+            resourceType: 'image',
+          );
+          if (uploaded != null) imageUrl = uploaded;
+        }
       }
 
       await firestore.collection('groups').doc(group.id).update({

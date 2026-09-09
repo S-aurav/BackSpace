@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
@@ -689,6 +690,11 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
 
   // Save Media to Gallery
   Future<void> _saveMediaToGallery() async {
+    if (kIsWeb) {
+      APIs.openUrl(widget.message.msg);
+      if (mounted) Dialogs.showSnackbar(context, 'Opening media in new tab...');
+      return;
+    }
     try {
       Dialogs.showProgressBar(context);
       final response = await http.get(Uri.parse(widget.message.msg));

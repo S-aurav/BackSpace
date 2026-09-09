@@ -1,13 +1,14 @@
 import 'dart:developer';
-import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:gal/gal.dart';
 
+import '../api/apis.dart';
 import '../helper/cache_manager.dart';
 import '../helper/dialogs.dart';
 
@@ -99,6 +100,13 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
 
   Future<void> _saveImage() async {
     if (_isSaving) return;
+
+    if (kIsWeb) {
+      APIs.openUrl(widget.imageUrl);
+      if (mounted) Dialogs.showSnackbar(context, 'Opening image in new tab...');
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {

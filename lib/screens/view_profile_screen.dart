@@ -11,6 +11,7 @@ import '../helper/my_date_util.dart';
 import '../helper/theme_controller.dart';
 import '../main.dart';
 import '../models/chat_user.dart';
+import '../widgets/adaptive_blur.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/full_screen_image_viewer.dart';
 
@@ -40,17 +41,15 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
               toolbarHeight: 56,
               backgroundColor: Colors.transparent,
               elevation: 0,
-              flexibleSpace: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: ThemeController.headerColor.withValues(alpha: 0.55),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: ThemeController.dividerColor.withValues(alpha: 0.4),
-                          width: 0.5,
-                        ),
+              flexibleSpace: AdaptiveBlur(
+                sigma: 30,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: ThemeController.headerColor.withValues(alpha: ThemeController.headerAlpha),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: ThemeController.dividerColor.withValues(alpha: 0.4),
+                        width: 0.5,
                       ),
                     ),
                   ),

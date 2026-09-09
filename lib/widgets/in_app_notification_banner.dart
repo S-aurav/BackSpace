@@ -11,6 +11,7 @@ import '../helper/theme_controller.dart';
 import '../models/chat_user.dart';
 import '../screens/chat_screen.dart';
 import '../screens/group_chat_screen.dart';
+import 'adaptive_blur.dart';
 
 class InAppNotification {
   static OverlayEntry? _currentEntry;
@@ -165,11 +166,11 @@ class _InAppNotificationBannerWidgetState extends State<_InAppNotificationBanner
             },
             child: Material(
               color: Colors.transparent,
-              child: ClipRRect(
+              child: AdaptiveBlur(
                 borderRadius: BorderRadius.circular(22),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                  child: Container(
+                sigmaX: 25,
+                sigmaY: 25,
+                child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
                       color: ThemeController.cardColor.withValues(alpha: isDark ? 0.88 : 0.94),
@@ -271,7 +272,6 @@ class _InAppNotificationBannerWidgetState extends State<_InAppNotificationBanner
                 ),
               ),
             ),
-          ),
         ),
       ),
     );

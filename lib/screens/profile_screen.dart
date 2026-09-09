@@ -6,6 +6,7 @@ import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -14,6 +15,7 @@ import '../helper/dialogs.dart';
 import '../helper/theme_controller.dart';
 import '../main.dart';
 import '../models/chat_user.dart';
+import '../widgets/adaptive_blur.dart';
 
 // Profile screen -- Adapts dynamically to Light/Dark Mode with frosted glass iOS cards & iMessage edit dialogs
 class ProfileScreen extends StatefulWidget {
@@ -27,6 +29,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String? _image;
+  Uint8List? _imageBytes;
 
   @override
   Widget build(BuildContext context) {
@@ -45,17 +48,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               toolbarHeight: 56,
               backgroundColor: Colors.transparent,
               elevation: 0,
-              flexibleSpace: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: ThemeController.headerColor.withValues(alpha: 0.55),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: ThemeController.dividerColor.withValues(alpha: 0.4),
-                          width: 0.5,
-                        ),
+              flexibleSpace: AdaptiveBlur(
+                sigma: 30,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: ThemeController.headerColor.withValues(alpha: ThemeController.headerAlpha),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: ThemeController.dividerColor.withValues(alpha: 0.4),
+                        width: 0.5,
                       ),
                     ),
                   ),
@@ -98,28 +99,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Stack(
                             children: [
-                              _image != null
+                              _imageBytes != null
                                   ? ClipRRect(
                                       borderRadius: BorderRadius.circular(mq.height * .1),
-                                      child: Image.file(
-                                        File(_image!),
+                                      child: Image.memory(
+                                        _imageBytes!,
                                         width: mq.height * .13,
                                         height: mq.height * .13,
                                         fit: BoxFit.cover,
                                       ),
                                     )
-                                  : ClipRRect(
-                                      borderRadius: BorderRadius.circular(mq.height * .1),
-                                      child: CachedNetworkImage(
-                                        width: mq.height * .13,
-                                        height: mq.height * .13,
-                                        fit: BoxFit.cover,
-                                        imageUrl: widget.user.image,
-                                        errorWidget: (context, url, error) => const CircleAvatar(
-                                          child: Icon(CupertinoIcons.person_fill),
-                                        ),
-                                      ),
-                                    ),
+                                  : (_image != null && !kIsWeb
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(mq.height * .1),
+                                          child: Image.file(
+                                            File(_image!),
+                                            width: mq.height * .13,
+                                            height: mq.height * .13,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        )
+                                      : ClipRRect(
+                                          borderRadius: BorderRadius.circular(mq.height * .1),
+                                          child: CachedNetworkImage(
+                                            width: mq.height * .13,
+                                            height: mq.height * .13,
+                                            fit: BoxFit.cover,
+                                            imageUrl: widget.user.image,
+                                            errorWidget: (context, url, error) => const CircleAvatar(
+                                              child: Icon(CupertinoIcons.person_fill),
+                                            ),
+                                          ),
+                                        )),
                               Positioned(
                                 bottom: 0,
                                 right: 0,
@@ -170,13 +181,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 28),
 
                     // Frosted Glass Grouped Input Container (iMessage Style)
-                    ClipRRect(
+                    AdaptiveBlur(
                       borderRadius: BorderRadius.circular(16),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: ThemeController.cardColor.withValues(alpha: isDark ? 0.75 : 0.85),
+                      sigma: 20,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: ThemeController.cardColor.withValues(alpha: ThemeController.cardAlpha),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: ThemeController.dividerColor.withValues(alpha: 0.35),
@@ -244,7 +254,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -368,8 +377,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
               if (image != null) {
                 log('Image Path: ${image.path}');
-                setState(() => _image = image.path);
-                APIs.updateProfilePicture(File(_image!));
+                final bytes = await image.readAsBytes();
+                setState(() {
+                  _image = image.path;
+                  _imageBytes = bytes;
+                });
+                APIs.updateProfilePicture(image);
               }
             },
           ),
@@ -388,8 +401,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final XFile? image = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
               if (image != null) {
                 log('Image Path: ${image.path}');
-                setState(() => _image = image.path);
-                APIs.updateProfilePicture(File(_image!));
+                final bytes = await image.readAsBytes();
+                setState(() {
+                  _image = image.path;
+                  _imageBytes = bytes;
+                });
+                APIs.updateProfilePicture(image);
               }
             },
           ),

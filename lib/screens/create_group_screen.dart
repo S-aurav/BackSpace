@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -13,6 +14,7 @@ import '../helper/cache_manager.dart';
 import '../helper/dialogs.dart';
 import '../helper/theme_controller.dart';
 import '../models/chat_user.dart';
+import '../widgets/adaptive_blur.dart';
 import 'group_chat_screen.dart';
 
 // Create Group Screen -- Step 1: Select Members, Step 2: Set Group Subject & Photo
@@ -32,6 +34,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
   String? _groupImage;
+  Uint8List? _groupImageBytes;
+  XFile? _groupImageXFile;
   bool _isCreating = false;
 
   @override
@@ -55,12 +59,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             toolbarHeight: 56,
             backgroundColor: Colors.transparent,
             elevation: 0,
-            flexibleSpace: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: ThemeController.headerColor.withValues(alpha: 0.55),
+            flexibleSpace: AdaptiveBlur(
+              sigma: 30,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: ThemeController.headerColor.withValues(alpha: ThemeController.headerAlpha),
                     border: Border(
                       bottom: BorderSide(
                         color: ThemeController.dividerColor.withValues(alpha: 0.4),
@@ -70,7 +73,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   ),
                 ),
               ),
-            ),
             leading: GestureDetector(
               onTap: () {
                 if (_step == 2) {
@@ -303,29 +305,39 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           Center(
             child: Stack(
               children: [
-                _groupImage != null
+                _groupImageBytes != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(55),
-                        child: Image.file(
-                          File(_groupImage!),
+                        child: Image.memory(
+                          _groupImageBytes!,
                           width: 110,
                           height: 110,
                           fit: BoxFit.cover,
                         ),
                       )
-                    : Container(
-                        width: 110,
-                        height: 110,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF007AFF).withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          CupertinoIcons.group_solid,
-                          color: Color(0xFF007AFF),
-                          size: 54,
-                        ),
-                      ),
+                    : (_groupImage != null && !kIsWeb
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(55),
+                            child: Image.file(
+                              File(_groupImage!),
+                              width: 110,
+                              height: 110,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Container(
+                            width: 110,
+                            height: 110,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF007AFF).withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              CupertinoIcons.group_solid,
+                              color: Color(0xFF007AFF),
+                              size: 54,
+                            ),
+                          )),
                 Positioned(
                   bottom: 0,
                   right: 0,
@@ -349,13 +361,12 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           const SizedBox(height: 28),
 
           // Group Details Input Card
-          ClipRRect(
+          AdaptiveBlur(
             borderRadius: BorderRadius.circular(16),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: ThemeController.cardColor.withValues(alpha: isDark ? 0.75 : 0.85),
+            sigma: 20,
+            child: Container(
+              decoration: BoxDecoration(
+                color: ThemeController.cardColor.withValues(alpha: ThemeController.cardAlpha),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: ThemeController.dividerColor.withValues(alpha: 0.35),
@@ -393,7 +404,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 ),
               ),
             ),
-          ),
 
           const SizedBox(height: 28),
 
@@ -445,7 +455,12 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (image != null) {
-      setState(() => _groupImage = image.path);
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _groupImage = image.path;
+        _groupImageBytes = bytes;
+        _groupImageXFile = image;
+      });
     }
   }
 
@@ -463,7 +478,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       name: name,
       description: _descController.text.trim(),
       memberIds: _selectedMemberIds.toList(),
-      imageFile: _groupImage != null ? File(_groupImage!) : null,
+      imageFile: _groupImageXFile ?? (_groupImage != null ? File(_groupImage!) : null),
     );
 
     setState(() => _isCreating = false);

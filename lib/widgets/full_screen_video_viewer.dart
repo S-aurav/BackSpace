@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
@@ -10,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 
+import '../api/apis.dart';
 import '../helper/dialogs.dart';
 
 /// Full-screen interactive video player with WhatsApp / iOS Video styling.
@@ -121,6 +123,13 @@ class _FullScreenVideoViewerState extends State<FullScreenVideoViewer> {
 
   Future<void> _saveVideo() async {
     if (_isSaving) return;
+
+    if (kIsWeb) {
+      APIs.openUrl(widget.videoUrl);
+      if (mounted) Dialogs.showSnackbar(context, 'Opening video in new tab...');
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {

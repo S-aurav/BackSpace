@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
@@ -19,6 +20,10 @@ class NotificationService {
   // Initialize local notifications plugin
   static Future<void> initialize() async {
     if (_isInitialized) return;
+    if (kIsWeb) {
+      _isInitialized = true;
+      return;
+    }
 
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwinSettings = DarwinInitializationSettings(
@@ -138,6 +143,7 @@ class NotificationService {
     String? photoUrl,
     bool isGroup = false,
   }) async {
+    if (kIsWeb) return;
     try {
       await initialize();
 

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -10,6 +11,7 @@ import '../../api/apis.dart';
 import '../../helper/dialogs.dart';
 import '../../helper/theme_controller.dart';
 import '../../main.dart';
+import '../../widgets/adaptive_blur.dart';
 import '../home_screen.dart';
 
 // Authentic iOS iMessage-styled Welcome & Sign In Screen
@@ -94,6 +96,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   Future<UserCredential?> _signInWithGoogle() async {
     try {
+      if (kIsWeb) {
+        final googleProvider = GoogleAuthProvider();
+        return await APIs.auth.signInWithPopup(googleProvider);
+      }
+
       final result = await InternetAddress.lookup('google.com');
       if (result.isEmpty) {
         throw Exception('No internet response from google.com');
@@ -210,67 +217,66 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       const Spacer(flex: 4),
 
                       // Frosted Glass "Sign in with Google" Pill Button
-                      ClipRRect(
+                      AdaptiveBlur(
                         borderRadius: BorderRadius.circular(28),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: _isLoading ? null : _handleGoogleBtnClick,
-                              borderRadius: BorderRadius.circular(28),
-                              child: Container(
-                                width: double.infinity,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: ThemeController.cardColor.withValues(alpha: isDark ? 0.75 : 0.85),
-                                  borderRadius: BorderRadius.circular(28),
-                                  border: Border.all(
-                                    color: isDark
-                                        ? Colors.white.withValues(alpha: 0.15)
-                                        : Colors.black.withValues(alpha: 0.08),
-                                    width: 0.8,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
+                        sigmaX: 25,
+                        sigmaY: 25,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _isLoading ? null : _handleGoogleBtnClick,
+                            borderRadius: BorderRadius.circular(28),
+                            child: Container(
+                              width: double.infinity,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: ThemeController.cardColor.withValues(alpha: ThemeController.cardAlpha),
+                                borderRadius: BorderRadius.circular(28),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.15)
+                                      : Colors.black.withValues(alpha: 0.08),
+                                  width: 0.8,
                                 ),
-                                child: _isLoading
-                                    ? const Center(
-                                        child: SizedBox(
-                                          width: 22,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: _isLoading
+                                  ? const Center(
+                                      child: SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF007AFF)),
+                                        ),
+                                      ),
+                                    )
+                                  : Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          'images/google.png',
                                           height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.5,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF007AFF)),
+                                          width: 22,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Sign in with Google',
+                                          style: TextStyle(
+                                            color: ThemeController.textColor,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: -0.2,
                                           ),
                                         ),
-                                      )
-                                    : Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Image.asset(
-                                            'images/google.png',
-                                            height: 22,
-                                            width: 22,
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Text(
-                                            'Sign in with Google',
-                                            style: TextStyle(
-                                              color: ThemeController.textColor,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              letterSpacing: -0.2,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                              ),
+                                      ],
+                                    ),
                             ),
                           ),
                         ),

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../helper/theme_controller.dart';
 
@@ -53,19 +54,21 @@ class CustomContextMenuDialog extends StatelessWidget {
         );
       },
       transitionBuilder: (ctx, anim1, anim2, child) {
-        final curvedAnim = CurvedAnimation(parent: anim1, curve: Curves.easeOutBack);
+        final curvedAnim = CurvedAnimation(parent: anim1, curve: Curves.easeOut);
+        final animatedChild = ScaleTransition(
+          scale: Tween<double>(begin: 0.92, end: 1.0).animate(curvedAnim),
+          child: FadeTransition(
+            opacity: anim1,
+            child: child,
+          ),
+        );
+        if (kIsWeb) return animatedChild;
         return BackdropFilter(
           filter: ImageFilter.blur(
             sigmaX: 18 * anim1.value,
             sigmaY: 18 * anim1.value,
           ),
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.85, end: 1.0).animate(curvedAnim),
-            child: FadeTransition(
-              opacity: anim1,
-              child: child,
-            ),
-          ),
+          child: animatedChild,
         );
       },
     );

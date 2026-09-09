@@ -13,6 +13,7 @@ import '../api/apis.dart';
 import '../helper/theme_controller.dart';
 import '../models/chat_user.dart';
 import '../models/story.dart';
+import '../widgets/adaptive_blur.dart';
 
 class StoryViewerScreen extends StatefulWidget {
   final List<UserStoriesGroup> userStoriesGroups;
@@ -457,11 +458,10 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                   child: Center(
                     child: GestureDetector(
                       onTap: _showViewersSheet,
-                      child: ClipRRect(
+                      child: AdaptiveBlur(
                         borderRadius: BorderRadius.circular(20),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                          child: Container(
+                        sigma: 15,
+                        child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.2),
@@ -482,7 +482,6 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                                   ),
                                 ),
                               ],
-                            ),
                           ),
                         ),
                       ),
@@ -588,11 +587,10 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
             Row(
               children: [
                 Expanded(
-                  child: ClipRRect(
+                  child: AdaptiveBlur(
                     borderRadius: BorderRadius.circular(18),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                      child: Container(
+                    sigma: 16,
+                    child: Container(
                         height: 36,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
@@ -620,7 +618,6 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       ),
                     ),
                   ),
-                ),
                 const SizedBox(width: 6),
                 GestureDetector(
                   onTap: () {
@@ -825,14 +822,13 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => ClipRRect(
+      builder: (ctx) => AdaptiveBlur(
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(28),
           topRight: Radius.circular(28),
         ),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
+        sigma: 30,
+        child: Container(
             color: ThemeController.cardColor.withValues(alpha: 0.95),
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(context).size.height * 0.55,
@@ -923,7 +919,6 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
             ),
           ),
         ),
-      ),
     ).then((_) {
       setState(() => _isPaused = false);
       if (_isMediaLoaded) {
