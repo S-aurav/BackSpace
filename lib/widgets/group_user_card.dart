@@ -309,8 +309,8 @@ class _GroupUserCardState extends State<GroupUserCard> {
                           Text(
                             _lastMessage != null
                                 ? (_lastMessage!.senderName != null && _lastMessage!.senderName!.isNotEmpty
-                                    ? '${_lastMessage!.senderName}: ${_lastMessage!.type == Type.image ? '📷 Photo' : _lastMessage!.type == Type.video ? '🎥 Video' : _lastMessage!.msg}'
-                                    : _lastMessage!.msg)
+                                    ? '${_lastMessage!.senderName}: ${_lastMessage!.type == Type.image ? '📷 Photo' : _lastMessage!.type == Type.video ? '🎥 Video' : _lastMessage!.type == Type.gif ? '👾 GIF' : _lastMessage!.msg}'
+                                    : (_lastMessage!.type == Type.image ? '📷 Photo' : _lastMessage!.type == Type.video ? '🎥 Video' : _lastMessage!.type == Type.gif ? '👾 GIF' : _lastMessage!.msg))
                                 : (group.lastMessageSenderName.isNotEmpty
                                     ? '${group.lastMessageSenderName}: ${group.lastMessage}'
                                     : group.lastMessage),

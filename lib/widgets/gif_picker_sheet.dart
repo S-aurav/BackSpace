@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -486,28 +487,54 @@ class _GifTileState extends State<_GifTile> with SingleTickerProviderStateMixin 
             borderRadius: BorderRadius.circular(6),
             child: AspectRatio(
               aspectRatio: clampedRatio,
-              child: CachedNetworkImage(
-                imageUrl: widget.gif.previewUrl,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
-                  color: widget.isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.06),
-                  child: const Center(
-                    child: CupertinoActivityIndicator(),
-                  ),
-                ),
-                errorWidget: (_, __, ___) => Container(
-                  color: widget.isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.06),
-                  child: Icon(
-                    CupertinoIcons.photo,
-                    color: Colors.grey.withValues(alpha: 0.5),
-                    size: 24,
-                  ),
-                ),
-              ),
+              child: kIsWeb
+                  ? Image.network(
+                      widget.gif.previewUrl,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: widget.isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : Colors.black.withValues(alpha: 0.06),
+                          child: const Center(
+                            child: CupertinoActivityIndicator(),
+                          ),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => Container(
+                        color: widget.isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.06),
+                        child: Icon(
+                          CupertinoIcons.photo,
+                          color: Colors.grey.withValues(alpha: 0.5),
+                          size: 24,
+                        ),
+                      ),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: widget.gif.previewUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        color: widget.isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.06),
+                        child: const Center(
+                          child: CupertinoActivityIndicator(),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        color: widget.isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.06),
+                        child: Icon(
+                          CupertinoIcons.photo,
+                          color: Colors.grey.withValues(alpha: 0.5),
+                          size: 24,
+                        ),
+                      ),
+                    ),
             ),
           ),
         ),

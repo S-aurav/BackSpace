@@ -153,13 +153,21 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
             const SizedBox(width: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: CachedNetworkImage(
-                width: 36,
-                height: 36,
-                fit: BoxFit.cover,
-                imageUrl: APIs.getOptimizedImageUrl(message.replyToMediaUrl!, width: 100),
-                errorWidget: (_, __, ___) => const Icon(CupertinoIcons.photo, size: 18, color: Colors.grey),
-              ),
+              child: (message.replyToType == 'gif' || message.replyToMediaUrl!.toLowerCase().contains('.gif'))
+                  ? Image.network(
+                      message.replyToMediaUrl!,
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(CupertinoIcons.photo, size: 18, color: Colors.grey),
+                    )
+                  : CachedNetworkImage(
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      imageUrl: APIs.getOptimizedImageUrl(message.replyToMediaUrl!, width: 100),
+                      errorWidget: (_, __, ___) => const Icon(CupertinoIcons.photo, size: 18, color: Colors.grey),
+                    ),
             ),
           ],
         ],
@@ -239,16 +247,26 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
               const SizedBox(width: 36), // Aligns bubble gracefully under the sender's name
 
               Flexible(
-                child: (widget.message.type == Type.image || widget.message.type == Type.gif)
+                child: (widget.message.type == Type.gif || widget.message.msg.toLowerCase().contains('.gif'))
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                             _buildReplyPreviewBox(widget.message, false, isDark),
-                          _imageBubble(isMe: false),
+                          _gifBubble(isMe: false),
                         ],
                       )
+                    : widget.message.type == Type.image
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                                _buildReplyPreviewBox(widget.message, false, isDark),
+                              _imageBubble(isMe: false),
+                            ],
+                          )
                     : widget.message.type == Type.video
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,16 +340,26 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
 
               const SizedBox(width: 6),
 
-              (widget.message.type == Type.image || widget.message.type == Type.gif)
+              (widget.message.type == Type.gif || widget.message.msg.toLowerCase().contains('.gif'))
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                           _buildReplyPreviewBox(widget.message, true, isDark),
-                        _imageBubble(isMe: true),
+                        _gifBubble(isMe: true),
                       ],
                     )
+                  : widget.message.type == Type.image
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                              _buildReplyPreviewBox(widget.message, true, isDark),
+                            _imageBubble(isMe: true),
+                          ],
+                        )
                   : widget.message.type == Type.video
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -375,6 +403,97 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // Animated GIF Bubble with fluid playback & GIF badge for Group Chat
+  Widget _gifBubble({required bool isMe}) {
+    final imageWidth = mq.width * .62;
+    final heroTag = 'msg_gif_${widget.message.sent}';
+
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        FocusManager.instance.primaryFocus?.unfocus();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FullScreenImageViewer(
+              imageUrl: widget.message.msg,
+              heroTag: heroTag,
+              title: '${widget.message.senderName ?? widget.group.name} (GIF)',
+              subtitle: MyDateUtil.getFormattedTime(context: context, time: widget.message.sent),
+              isGif: true,
+            ),
+          ),
+        );
+      },
+      child: Hero(
+        tag: heroTag,
+        child: Container(
+          width: imageWidth,
+          constraints: BoxConstraints(
+            maxHeight: mq.height * 0.35,
+            minHeight: 140,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: ThemeController.dividerColor.withValues(alpha: 0.3), width: 0.5),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              alignment: Alignment.bottomLeft,
+              children: [
+                Image.network(
+                  widget.message.msg,
+                  width: imageWidth,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const SizedBox(
+                      height: 180,
+                      child: Center(child: CupertinoActivityIndicator(color: Color(0xFF007AFF))),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 140,
+                    color: ThemeController.cardColor,
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.amber, size: 28),
+                        SizedBox(height: 6),
+                        Text('Failed to load GIF', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'GIF',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

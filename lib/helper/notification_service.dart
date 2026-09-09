@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import '../api/apis.dart';
 import '../screens/chat_screen.dart';
 import '../screens/group_chat_screen.dart';
+import 'web_notification/web_notification.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _localNotifications =
@@ -143,7 +144,15 @@ class NotificationService {
     String? photoUrl,
     bool isGroup = false,
   }) async {
-    if (kIsWeb) return;
+    if (kIsWeb) {
+      showWebBrowserNotification(
+        title: title,
+        body: body,
+        tag: senderId,
+        icon: senderImage,
+      );
+      return;
+    }
     try {
       await initialize();
 

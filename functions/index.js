@@ -16,7 +16,7 @@ exports.sendChatNotification = functions
     if (!toId || !fromId) return null;
 
     try {
-      // 1. Fetch recipient's push token
+      // 1. Fetch recipient's profile info & settings
       const recipientDoc = await admin
         .firestore()
         .collection("users")
@@ -26,11 +26,6 @@ exports.sendChatNotification = functions
       if (!recipientDoc.exists) return null;
       const recipientData = recipientDoc.data() || {};
       const pushToken = recipientData.push_token || recipientData.pushToken || null;
-
-      if (!pushToken || pushToken.trim() === "") {
-        console.log(`No push token found for recipient: ${toId}`);
-        return null;
-      }
 
       // Check if recipient blocked sender
       const blockedUsers = recipientData.blocked_users || [];
@@ -71,9 +66,34 @@ exports.sendChatNotification = functions
         }
       } else if (type === "video" || type === "Type.video") {
         bodyText = "🎬 Video";
+      } else if (type === "gif" || type === "Type.gif") {
+        bodyText = "👾 GIF";
       }
 
-      // 4. Dispatch FCM v1 High-Priority Data-Only Payload (prevents OS duplicate notification)
+      // 4. Write real-time in-app notification doc for instant web/app delivery
+      const now = Date.now().toString();
+      await admin
+        .firestore()
+        .collection("users")
+        .doc(toId)
+        .collection("notifications")
+        .doc(now)
+        .set({
+          fromId: String(fromId),
+          fromName: String(senderName),
+          fromImage: String(senderImage),
+          msg: String(bodyText),
+          type: "chat",
+          timestamp: now,
+        })
+        .catch((err) => console.log("Inbox notification write error:", err));
+
+      // 5. Dispatch FCM push notification (Android + WebPush) if push token exists
+      if (!pushToken || pushToken.trim() === "") {
+        console.log(`No push token found for recipient: ${toId}. In-app notification delivered.`);
+        return null;
+      }
+
       const payload = {
         token: pushToken,
         data: {
@@ -89,6 +109,21 @@ exports.sendChatNotification = functions
         },
         android: {
           priority: "high",
+        },
+        webpush: {
+          headers: {
+            Urgency: "high",
+          },
+          notification: {
+            title: String(senderName),
+            body: String(bodyText),
+            icon: "/favicon.png",
+            badge: "/favicon.png",
+            tag: String(fromId),
+          },
+          fcmOptions: {
+            link: "/",
+          },
         },
       };
 
@@ -203,6 +238,7 @@ exports.sendGroupChatNotification = functions
       let bodyText = msg || "";
       if (type === "image" || type === "Type.image") bodyText = "📷 Photo";
       if (type === "video" || type === "Type.video") bodyText = "🎬 Video";
+      if (type === "gif" || type === "Type.gif") bodyText = "👾 GIF";
 
       const formattedBody = `${senderName || "Member"}: ${bodyText}`;
 
@@ -219,11 +255,6 @@ exports.sendGroupChatNotification = functions
           }
 
           const userData = userDoc.data() || {};
-          const pushToken = userData.push_token || userData.pushToken || null;
-          if (!pushToken || pushToken.trim() === "") {
-            console.log(`No push token found for group recipient ${recipientId}`);
-            continue;
-          }
 
           // Check if recipient blocked group sender
           const blockedUsers = userData.blocked_users || [];
@@ -242,6 +273,31 @@ exports.sendGroupChatNotification = functions
             }
           }
 
+          // 1. Write real-time in-app notification doc for instant web/app sync
+          const now = Date.now().toString();
+          admin
+            .firestore()
+            .collection("users")
+            .doc(recipientId)
+            .collection("notifications")
+            .doc(now)
+            .set({
+              fromId: String(groupId),
+              fromName: String(groupName),
+              fromImage: String(groupImage || senderImage || ""),
+              msg: String(formattedBody),
+              type: "group_chat",
+              timestamp: now,
+            })
+            .catch((err) => console.log("Group inbox notification write error:", err));
+
+          // 2. Dispatch FCM push notification (Android + WebPush) if push token exists
+          const pushToken = userData.push_token || userData.pushToken || null;
+          if (!pushToken || pushToken.trim() === "") {
+            console.log(`No push token found for group recipient ${recipientId}. In-app notification delivered.`);
+            continue;
+          }
+
           const payload = {
             token: pushToken,
             data: {
@@ -256,6 +312,21 @@ exports.sendGroupChatNotification = functions
             },
             android: {
               priority: "high",
+            },
+            webpush: {
+              headers: {
+                Urgency: "high",
+              },
+              notification: {
+                title: String(groupName),
+                body: String(formattedBody),
+                icon: "/favicon.png",
+                badge: "/favicon.png",
+                tag: String(groupId),
+              },
+              fcmOptions: {
+                link: "/",
+              },
             },
           };
 

@@ -80,6 +80,54 @@
         setTimeout(function() { splash.remove(); }, 400);
       }
     });
+
+    // Register Firebase Messaging Service Worker for background notifications
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then(function(reg) {
+          console.log('[FCM SW] Registered successfully:', reg.scope);
+        }).catch(function(err) {
+          console.log('[FCM SW] Registration failed:', err);
+        });
+    }
+
+    // Native browser notification dispatcher
+    window.showWebNotification = function(title, body, tag, icon) {
+      if (!("Notification" in window)) return;
+      var options = {
+        body: body || '',
+        icon: icon || '/favicon.png',
+        badge: '/favicon.png',
+        tag: tag || 'backspace-notification',
+        renotify: true
+      };
+
+      function triggerNotification() {
+        try {
+          var n = new Notification(title, options);
+          n.onclick = function() {
+            window.focus();
+            this.close();
+          };
+        } catch (e) {
+          if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+            navigator.serviceWorker.ready.then(function(reg) {
+              reg.showNotification(title, options);
+            });
+          }
+        }
+      }
+
+      if (Notification.permission === "granted") {
+        triggerNotification();
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(function(permission) {
+          if (permission === "granted") {
+            triggerNotification();
+          }
+        });
+      }
+    };
   </script>
 
   <script src="flutter_bootstrap.js" async></script>

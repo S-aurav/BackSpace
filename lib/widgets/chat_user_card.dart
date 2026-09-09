@@ -139,7 +139,9 @@ class _ChatUserCardState extends State<ChatUserCard> {
                                         ? '📷 Photo'
                                         : _message!.type == Type.video
                                             ? '🎥 Video'
-                                            : _message!.msg
+                                            : _message!.type == Type.gif
+                                                ? '👾 GIF'
+                                                : _message!.msg
                                     : widget.user.about,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

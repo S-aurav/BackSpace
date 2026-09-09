@@ -147,13 +147,21 @@ class _MessageCardState extends State<MessageCard> {
             const SizedBox(width: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: CachedNetworkImage(
-                width: 36,
-                height: 36,
-                fit: BoxFit.cover,
-                imageUrl: APIs.getOptimizedImageUrl(message.replyToMediaUrl!, width: 100),
-                errorWidget: (_, __, ___) => const Icon(CupertinoIcons.photo, size: 18, color: Colors.grey),
-              ),
+              child: (message.replyToType == 'gif' || message.replyToMediaUrl!.toLowerCase().contains('.gif'))
+                  ? Image.network(
+                      message.replyToMediaUrl!,
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(CupertinoIcons.photo, size: 18, color: Colors.grey),
+                    )
+                  : CachedNetworkImage(
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      imageUrl: APIs.getOptimizedImageUrl(message.replyToMediaUrl!, width: 100),
+                      errorWidget: (_, __, ___) => const Icon(CupertinoIcons.photo, size: 18, color: Colors.grey),
+                    ),
             ),
           ],
         ],
@@ -175,16 +183,26 @@ class _MessageCardState extends State<MessageCard> {
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          (widget.message.type == Type.image || widget.message.type == Type.gif)
+          (widget.message.type == Type.gif || widget.message.msg.toLowerCase().contains('.gif'))
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                       _buildReplyPreviewBox(widget.message, false, isDark),
-                    _imageBubble(isMe: false),
+                    _gifBubble(isMe: false),
                   ],
                 )
+              : widget.message.type == Type.image
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                          _buildReplyPreviewBox(widget.message, false, isDark),
+                        _imageBubble(isMe: false),
+                      ],
+                    )
               : widget.message.type == Type.video
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,16 +277,26 @@ class _MessageCardState extends State<MessageCard> {
               const SizedBox(width: 6),
 
               // iMessage Bubble (Text, Image, or Video)
-              (widget.message.type == Type.image || widget.message.type == Type.gif)
+              (widget.message.type == Type.gif || widget.message.msg.toLowerCase().contains('.gif'))
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                           _buildReplyPreviewBox(widget.message, true, isDark),
-                        _imageBubble(isMe: true),
+                        _gifBubble(isMe: true),
                       ],
                     )
+                  : widget.message.type == Type.image
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
+                              _buildReplyPreviewBox(widget.message, true, isDark),
+                            _imageBubble(isMe: true),
+                          ],
+                        )
                   : widget.message.type == Type.video
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -318,6 +346,134 @@ class _MessageCardState extends State<MessageCard> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  // Dedicated Animated GIF Bubble with fluid playback & subtle GIF badge
+  Widget _gifBubble({required bool isMe}) {
+    final borderRadius = isMe
+        ? const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(4),
+          )
+        : const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+            bottomLeft: Radius.circular(4),
+          );
+
+    final heroTag = 'chat_gif_${widget.message.sent}_${widget.message.fromId}';
+
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        FocusManager.instance.primaryFocus?.unfocus();
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            opaque: false,
+            barrierColor: Colors.black87,
+            pageBuilder: (context, animation, secondaryAnimation) {
+              return FadeTransition(
+                opacity: animation,
+                child: FullScreenImageViewer(
+                  imageUrl: widget.message.msg,
+                  heroTag: heroTag,
+                  title: isMe ? 'You (GIF)' : 'GIF',
+                  subtitle: MyDateUtil.getFormattedTime(context: context, time: widget.message.sent),
+                  isGif: true,
+                ),
+              );
+            },
+          ),
+        );
+      },
+      child: Hero(
+        tag: heroTag,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: mq.width * 0.65,
+            maxHeight: mq.height * 0.35,
+            minWidth: mq.width * 0.40,
+            minHeight: 140,
+          ),
+          decoration: BoxDecoration(
+            color: isMe ? const Color(0xFF007AFF) : ThemeController.cardColor,
+            borderRadius: borderRadius,
+            border: Border.all(
+              color: ThemeController.dividerColor.withValues(alpha: 0.25),
+              width: 0.5,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: borderRadius,
+            child: Stack(
+              alignment: Alignment.bottomLeft,
+              children: [
+                Image.network(
+                  widget.message.msg,
+                  fit: BoxFit.cover,
+                  width: mq.width * 0.65,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: mq.width * 0.55,
+                      height: 180,
+                      color: isMe
+                          ? const Color(0xFF007AFF).withValues(alpha: 0.25)
+                          : ThemeController.cardColor,
+                      child: Center(
+                        child: CupertinoActivityIndicator(
+                          color: isMe ? Colors.white : const Color(0xFF007AFF),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    log('Chat GIF load error: $error');
+                    return Container(
+                      width: mq.width * 0.55,
+                      height: 140,
+                      color: ThemeController.cardColor,
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.amber, size: 28),
+                          SizedBox(height: 6),
+                          Text('Failed to load GIF', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'GIF',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

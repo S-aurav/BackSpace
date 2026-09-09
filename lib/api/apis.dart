@@ -24,6 +24,7 @@ import '../models/story.dart';
 import '../screens/chat_screen.dart';
 import '../screens/group_chat_screen.dart';
 import '../widgets/in_app_notification_banner.dart';
+import '../helper/notification_service.dart';
 
 class APIs {
   // Cached KLIPY API key
@@ -180,6 +181,34 @@ class APIs {
   // for accessing firebase messaging (Push Notification)
   static FirebaseMessaging fMessaging = FirebaseMessaging.instance;
 
+  static String? _cachedVapidKey;
+
+  /// Fetches Web Push Certificate (VAPID Key) from config/services or compile-time env
+  static Future<String> getWebPushVapidKey() async {
+    if (_cachedVapidKey != null && _cachedVapidKey!.isNotEmpty) {
+      return _cachedVapidKey!;
+    }
+    const envKey = String.fromEnvironment('FCM_VAPID_KEY');
+    if (envKey.isNotEmpty) {
+      _cachedVapidKey = envKey;
+      return envKey;
+    }
+    try {
+      final doc = await firestore.collection('config').doc('services').get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        final key = (data['fcm_vapid_key'] ?? data['vapidKey'] ?? '').toString().trim();
+        if (key.isNotEmpty) {
+          _cachedVapidKey = key;
+          return key;
+        }
+      }
+    } catch (e) {
+      log('Error reading VAPID key from config: $e');
+    }
+    return '';
+  }
+
   // for getting firebase messaging token & registering handlers
   static Future<void> getFirebaseMessagingToken() async {
     try {
@@ -191,15 +220,27 @@ class APIs {
       );
       log('User granted notification permission: ${settings.authorizationStatus}');
 
-      await fMessaging.getToken().then((t) {
-        if (t != null) {
-          me.pushToken = t;
-          log('Push Token: $t');
+      try {
+        String? token;
+        if (kIsWeb) {
+          final vapidKey = await getWebPushVapidKey();
+          token = await fMessaging.getToken(
+            vapidKey: vapidKey.isNotEmpty ? vapidKey : null,
+          );
+        } else {
+          token = await fMessaging.getToken();
+        }
+
+        if (token != null) {
+          me.pushToken = token;
+          log('Push Token: $token');
           if (auth.currentUser != null) {
-            firestore.collection('users').doc(user.uid).update({'push_token': t});
+            firestore.collection('users').doc(user.uid).update({'push_token': token});
           }
         }
-      });
+      } catch (tokenErr) {
+        log('Note: FCM token retrieval error (real-time notifications will operate via Firestore sync): $tokenErr');
+      }
 
       // Handle Foreground FCM Messages
       FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
@@ -261,6 +302,15 @@ class APIs {
           isOnline: true,
           lastActive: '',
           pushToken: '',
+        );
+
+        // Dispatch system/browser notification
+        NotificationService.showMessageNotification(
+          title: title,
+          body: body,
+          senderId: senderId,
+          senderImage: senderImage,
+          isGroup: isGroupChat,
         );
 
         InAppNotification.show(
@@ -378,13 +428,25 @@ class APIs {
               if (type != 'story' && activeChatUserId != null && activeChatUserId == fromId) {
                 // Silenced
               } else {
+                final isGroup = type == 'group_chat' || fromId.startsWith('group_');
+
+                // 1. Dispatch system / browser notification (especially on Web / background tab)
+                NotificationService.showMessageNotification(
+                  title: fromName,
+                  body: msg,
+                  senderId: fromId,
+                  senderImage: fromImage,
+                  isGroup: isGroup,
+                );
+
+                // 2. Dispatch in-app floating banner
                 final context = navigatorKey.currentContext;
                 if (context != null) {
                   final senderUser = ChatUser(
                     id: fromId,
                     name: fromName,
                     email: '',
-                    about: '',
+                    about: isGroup ? 'Group Chat' : '',
                     image: fromImage,
                     createdAt: '',
                     isOnline: true,
@@ -1058,6 +1120,7 @@ class APIs {
   // Optimize Cloudinary URLs with auto-format (WebP/AVIF), auto-quality compression, and responsive resizing
   static String getOptimizedImageUrl(String url, {int? width}) {
     if (url.isEmpty) return url;
+    if (url.toLowerCase().contains('.gif')) return url;
     if (url.contains('cloudinary.com') && url.contains('/upload/')) {
       if (url.contains('/upload/f_auto') || url.contains('/upload/q_auto')) {
         return url;

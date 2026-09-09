@@ -26,6 +26,7 @@ class FullScreenImageViewer extends StatefulWidget {
   final String subtitle;
   final BaseCacheManager? cacheManager;
   final bool showDownload;
+  final bool isGif;
 
   const FullScreenImageViewer({
     super.key,
@@ -35,6 +36,7 @@ class FullScreenImageViewer extends StatefulWidget {
     this.subtitle = '',
     this.cacheManager,
     this.showDownload = true,
+    this.isGif = false,
   });
 
   @override
@@ -103,29 +105,38 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
 
     if (kIsWeb) {
       APIs.openUrl(widget.imageUrl);
-      if (mounted) Dialogs.showSnackbar(context, 'Opening image in new tab...');
+      if (mounted) {
+        Dialogs.showSnackbar(
+            context, widget.isGif ? 'Opening GIF in new tab...' : 'Opening image in new tab...');
+      }
       return;
     }
 
     setState(() => _isSaving = true);
 
     try {
-      final cacheMgr = widget.cacheManager ?? ChatImageCacheManager.instance;
-      final fileInfo = await cacheMgr.getFileFromCache(widget.imageUrl);
-
-      if (fileInfo != null) {
-        await Gal.putImage(fileInfo.file.path);
-      } else {
+      if (widget.isGif || widget.imageUrl.toLowerCase().contains('.gif')) {
         await Gal.putImage(widget.imageUrl);
+      } else {
+        final cacheMgr = widget.cacheManager ?? ChatImageCacheManager.instance;
+        final fileInfo = await cacheMgr.getFileFromCache(widget.imageUrl);
+
+        if (fileInfo != null) {
+          await Gal.putImage(fileInfo.file.path);
+        } else {
+          await Gal.putImage(widget.imageUrl);
+        }
       }
 
       if (mounted) {
-        Dialogs.showSnackbar(context, 'Image saved to gallery');
+        Dialogs.showSnackbar(
+            context, widget.isGif ? 'GIF saved to gallery' : 'Image saved to gallery');
       }
     } catch (e) {
-      log('Error saving image: $e');
+      log('Error saving media: $e');
       if (mounted) {
-        Dialogs.showSnackbar(context, 'Failed to save image');
+        Dialogs.showSnackbar(
+            context, widget.isGif ? 'Failed to save GIF' : 'Failed to save image');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -213,20 +224,36 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
             child: Center(
               child: Hero(
                 tag: widget.heroTag.isNotEmpty ? widget.heroTag : widget.imageUrl,
-                child: CachedNetworkImage(
-                  imageUrl: widget.imageUrl,
-                  cacheManager: widget.cacheManager ?? ChatImageCacheManager.instance,
-                  fadeInDuration: Duration.zero,
-                  fit: BoxFit.contain,
-                  placeholder: (context, url) => const Center(
-                    child: CupertinoActivityIndicator(color: Colors.white),
-                  ),
-                  errorWidget: (context, url, error) => const Icon(
-                    CupertinoIcons.photo,
-                    size: 80,
-                    color: Colors.white38,
-                  ),
-                ),
+                child: (widget.isGif || widget.imageUrl.toLowerCase().contains('.gif'))
+                    ? Image.network(
+                        widget.imageUrl,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(
+                            child: CupertinoActivityIndicator(color: Colors.white),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          CupertinoIcons.photo,
+                          size: 80,
+                          color: Colors.white38,
+                        ),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: widget.imageUrl,
+                        cacheManager: widget.cacheManager ?? ChatImageCacheManager.instance,
+                        fadeInDuration: Duration.zero,
+                        fit: BoxFit.contain,
+                        placeholder: (context, url) => const Center(
+                          child: CupertinoActivityIndicator(color: Colors.white),
+                        ),
+                        errorWidget: (context, url, error) => const Icon(
+                          CupertinoIcons.photo,
+                          size: 80,
+                          color: Colors.white38,
+                        ),
+                      ),
               ),
             ),
           ),
