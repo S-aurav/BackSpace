@@ -14,6 +14,7 @@ import '../helper/theme_controller.dart';
 import '../models/chat_user.dart';
 import '../models/story.dart';
 import '../widgets/adaptive_blur.dart';
+import '../widgets/linkify_text.dart';
 
 class StoryViewerScreen extends StatefulWidget {
   final List<UserStoriesGroup> userStoriesGroups;
@@ -96,10 +97,21 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     _replyFocusNode.removeListener(_onReplyFocusChange);
     _hasReplyTextNotifier.dispose();
     _replyController.dispose();
-    _replyFocusNode.dispose();
+    _replyNodeDispose();
     _disposeVideo();
     _animController.dispose();
     super.dispose();
+  }
+
+  void _openStoryLink(String url) {
+    _animController.stop();
+    _videoController?.pause();
+    setState(() => _isPaused = true);
+    APIs.openUrl(url);
+  }
+
+  void _replyNodeDispose() {
+    _replyFocusNode.dispose();
   }
 
   void _disposeVideo() {
@@ -420,9 +432,16 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     color: Colors.transparent,
-                    child: Text(
-                      _currentStory.caption,
+                    child: LinkifyText(
+                      text: _currentStory.caption,
                       textAlign: TextAlign.center,
+                      onOpenUrl: _openStoryLink,
+                      linkStyle: const TextStyle(
+                        color: Color(0xFF64D2FF),
+                        decoration: TextDecoration.underline,
+                        decorationColor: Color(0xFF64D2FF),
+                        fontWeight: FontWeight.bold,
+                      ),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -705,9 +724,16 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
-          child: Text(
-            story.mediaUrl,
+          child: LinkifyText(
+            text: story.mediaUrl,
             textAlign: TextAlign.center,
+            onOpenUrl: _openStoryLink,
+            linkStyle: const TextStyle(
+              color: Color(0xFF64D2FF),
+              decoration: TextDecoration.underline,
+              decorationColor: Color(0xFF64D2FF),
+              fontWeight: FontWeight.bold,
+            ),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 28,

@@ -14,6 +14,7 @@ import '../models/chat_user.dart';
 import '../widgets/adaptive_blur.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../widgets/linkify_text.dart';
 
 // View profile screen -- to view profile of another user with Light/Dark Theme Support
 class ViewProfileScreen extends StatefulWidget {
@@ -249,12 +250,13 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                                     style: TextStyle(color: ThemeController.subtextColor, fontWeight: FontWeight.w500, fontSize: 15),
                                   ),
                                   Expanded(
-                                    child: Text(
-                                      user.about.isNotEmpty ? user.about : 'Hey there! I am using BackSpace.',
+                                    child: LinkifyText(
+                                      text: user.about.isNotEmpty ? user.about : 'Hey there! I am using BackSpace.',
                                       style: TextStyle(
                                         color: ThemeController.textColor,
                                         fontSize: 15,
                                         fontWeight: FontWeight.w500,
+                                        height: 1.3,
                                       ),
                                     ),
                                   ),

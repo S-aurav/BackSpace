@@ -1834,14 +1834,24 @@ class APIs {
   // Launch external URL in browser
   static Future<void> openUrl(String urlStr) async {
     try {
-      final uri = Uri.parse(urlStr);
+      String cleanUrl = urlStr.trim();
+      if (cleanUrl.isEmpty) return;
+      if (!cleanUrl.startsWith(RegExp(r'https?:\/\/', caseSensitive: false))) {
+        cleanUrl = 'https://$cleanUrl';
+      }
+      final uri = Uri.parse(cleanUrl);
       final launched = await launchUrl(
         uri,
         mode: LaunchMode.externalApplication,
+        webOnlyWindowName: '_blank',
       );
       if (!launched) {
         log('Could not launch via externalApplication. Trying platformDefault mode...');
-        await launchUrl(uri, mode: LaunchMode.platformDefault);
+        await launchUrl(
+          uri,
+          mode: LaunchMode.platformDefault,
+          webOnlyWindowName: '_blank',
+        );
       }
     } catch (e) {
       log('Error openUrl: $e');

@@ -21,6 +21,7 @@ import '../models/message.dart';
 import 'custom_context_menu_dialog.dart';
 import 'full_screen_image_viewer.dart';
 import 'full_screen_video_viewer.dart';
+import 'linkify_text.dart';
 
 // Authentic Group iOS iMessage Chat Bubble matching MessageCard 1:1
 class GroupMessageCard extends StatefulWidget {
@@ -294,8 +295,9 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
                               children: [
                                 if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                                   _buildReplyPreviewBox(widget.message, false, isDark),
-                                Text(
-                                  widget.message.msg,
+                                LinkifyText(
+                                  text: widget.message.msg,
+                                  isMe: false,
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: isDark ? Colors.white : Colors.black,
@@ -388,8 +390,9 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
                               children: [
                                 if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                                   _buildReplyPreviewBox(widget.message, true, isDark),
-                                Text(
-                                  widget.message.msg,
+                                LinkifyText(
+                                  text: widget.message.msg,
+                                  isMe: true,
                                   style: const TextStyle(
                                     fontSize: 16,
                                     color: Colors.white,

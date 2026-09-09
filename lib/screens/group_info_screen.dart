@@ -18,6 +18,7 @@ import '../widgets/adaptive_blur.dart';
 import '../widgets/add_group_members_sheet.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../widgets/linkify_text.dart';
 import 'view_profile_screen.dart';
 
 // Group Info Screen -- Details, Members List, Admin Management & Leave Group
@@ -256,15 +257,22 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                               ],
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              _group.description.isNotEmpty ? _group.description : (isMember ? 'Tap to add group description...' : 'No description set.'),
-                              style: TextStyle(
-                                color: _group.description.isNotEmpty
-                                    ? ThemeController.textColor
-                                    : ThemeController.subtextColor,
-                                fontSize: 15,
-                              ),
-                            ),
+                            _group.description.isNotEmpty
+                                ? LinkifyText(
+                                    text: _group.description,
+                                    style: TextStyle(
+                                      color: ThemeController.textColor,
+                                      fontSize: 15,
+                                      height: 1.3,
+                                    ),
+                                  )
+                                : Text(
+                                    isMember ? 'Tap to add group description...' : 'No description set.',
+                                    style: TextStyle(
+                                      color: ThemeController.subtextColor,
+                                      fontSize: 15,
+                                    ),
+                                  ),
                           ],
                         ),
                       ),
