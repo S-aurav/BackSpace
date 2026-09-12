@@ -48,6 +48,8 @@ class Message {
       type = Type.video;
     } else if (typeStr == Type.gif.name || typeStr == 'Type.gif') {
       type = Type.gif;
+    } else if (typeStr == Type.system.name || typeStr == 'Type.system') {
+      type = Type.system;
     } else {
       type = Type.text;
     }
@@ -85,4 +87,4 @@ class Message {
   }
 }
 
-enum Type { text, image, video, gif }
+enum Type { text, image, video, gif, system }

@@ -240,7 +240,7 @@ class KlipyGifService implements GifRepository {
     try {
       final response = await http.get(uri, headers: {
         'Accept': 'application/json',
-        'User-Agent': 'BackSpace/2.1.0',
+        'User-Agent': 'BackSpace/2.2.0',
       }).timeout(const Duration(seconds: 25));
 
       debugPrint('[KLIPY API] ← ${response.statusCode} (${response.body.length} bytes)');

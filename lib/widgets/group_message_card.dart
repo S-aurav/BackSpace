@@ -15,11 +15,15 @@ import '../helper/dialogs.dart';
 import '../helper/my_date_util.dart';
 import '../helper/theme_controller.dart';
 import '../main.dart';
+import '../models/chat_user.dart';
 import '../models/group.dart';
 import '../models/message.dart';
+import '../screens/profile_screen.dart';
+import '../screens/view_profile_screen.dart';
 import 'custom_context_menu_dialog.dart';
 import 'full_screen_image_viewer.dart';
 import 'full_screen_video_viewer.dart';
+import 'linkify_text.dart';
 
 // Authentic Group iOS iMessage Chat Bubble matching MessageCard 1:1
 class GroupMessageCard extends StatefulWidget {
@@ -44,6 +48,10 @@ class GroupMessageCard extends StatefulWidget {
 class _GroupMessageCardState extends State<GroupMessageCard> {
   @override
   Widget build(BuildContext context) {
+    if (widget.message.type == Type.system) {
+      return _systemMessage();
+    }
+
     final bool isMe = APIs.user.uid == widget.message.fromId;
     Offset? tapPos;
     return Dismissible(
@@ -70,6 +78,46 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
         onTapDown: (details) => tapPos = details.globalPosition,
         onLongPress: () => _showCupertinoActionSheet(isMe, targetOffset: tapPos),
         child: isMe ? _myMessage() : _contactMessage(),
+      ),
+    );
+  }
+
+  // WhatsApp-style system message bubble (centered pill for group changes)
+  Widget _systemMessage() {
+    final bool isDark = ThemeController.isDark;
+    final bool isMe = APIs.user.uid == widget.message.fromId;
+    String displayMsg = widget.message.msg;
+    final sender = widget.message.senderName ?? APIs.me.name;
+    if (isMe && displayMsg.startsWith(sender)) {
+      displayMsg = 'You${displayMsg.substring(sender.length)}';
+    }
+
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 28),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.black.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.05),
+            width: 0.5,
+          ),
+        ),
+        child: Text(
+          displayMsg,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: ThemeController.subtextColor,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+            letterSpacing: -0.1,
+          ),
+        ),
       ),
     );
   }
@@ -182,53 +230,98 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header Row ABOVE Chat Bubble: Larger Profile Picture + Sender Name
+          // Header Row ABOVE Chat Bubble: Larger Profile Picture + Sender Name (Clickable to view profile)
           if (showHeader)
             Padding(
               padding: const EdgeInsets.only(left: 2, bottom: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                // Sender Avatar (Increased to 28x28 for crisp aesthetic)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: (widget.message.senderImage != null && widget.message.senderImage!.isNotEmpty)
-                      ? CachedNetworkImage(
-                          width: 28,
-                          height: 28,
-                          fit: BoxFit.cover,
-                          imageUrl: APIs.getOptimizedImageUrl(widget.message.senderImage!, width: 70),
-                          cacheManager: AvatarCacheManager.instance,
-                          errorWidget: (context, url, error) => CircleAvatar(
-                            radius: 14,
-                            backgroundColor: ThemeController.cardColor,
-                            child: Icon(CupertinoIcons.person_fill, size: 14, color: ThemeController.subtextColor),
-                          ),
-                        )
-                      : CircleAvatar(
-                          radius: 14,
-                          backgroundColor: ThemeController.cardColor,
-                          child: Icon(CupertinoIcons.person_fill, size: 14, color: ThemeController.subtextColor),
-                        ),
-                ),
-                const SizedBox(width: 8),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () async {
+                  final fromId = widget.message.fromId;
+                  if (fromId.isEmpty) return;
+                  if (fromId == APIs.user.uid) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => ProfileScreen(user: APIs.me)),
+                    );
+                    return;
+                  }
 
-                // Sender Name
-                if (hasSenderName)
-                  Text(
-                    widget.message.senderName!,
-                    style: const TextStyle(
-                      color: Color(0xFF34C759),
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Dialogs.showProgressBar(context);
+                  final targetUser = await APIs.getUserById(fromId);
+                  if (mounted) {
+                    Navigator.pop(context); // dismiss progress dialog
+                    if (targetUser != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => ViewProfileScreen(user: targetUser)),
+                      );
+                    } else {
+                      final fallbackUser = ChatUser(
+                        id: fromId,
+                        name: widget.message.senderName ?? 'User',
+                        email: '',
+                        about: '',
+                        image: widget.message.senderImage ?? '',
+                        createdAt: '',
+                        isOnline: false,
+                        lastActive: '',
+                        pushToken: '',
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => ViewProfileScreen(user: fallbackUser)),
+                      );
+                    }
+                  }
+                },
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Sender Avatar (Increased to 28x28 for crisp aesthetic)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: (widget.message.senderImage != null && widget.message.senderImage!.isNotEmpty)
+                            ? CachedNetworkImage(
+                                width: 28,
+                                height: 28,
+                                fit: BoxFit.cover,
+                                imageUrl: APIs.getOptimizedImageUrl(widget.message.senderImage!, width: 70),
+                                cacheManager: AvatarCacheManager.instance,
+                                errorWidget: (context, url, error) => CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: ThemeController.cardColor,
+                                  child: Icon(CupertinoIcons.person_fill, size: 14, color: ThemeController.subtextColor),
+                                ),
+                              )
+                            : CircleAvatar(
+                                radius: 14,
+                                backgroundColor: ThemeController.cardColor,
+                                child: Icon(CupertinoIcons.person_fill, size: 14, color: ThemeController.subtextColor),
+                              ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Sender Name
+                      if (hasSenderName)
+                        Text(
+                          widget.message.senderName!,
+                          style: const TextStyle(
+                            color: Color(0xFF34C759),
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
-              ],
+                ),
+              ),
             ),
-          ),
 
           // Message Bubble + Timestamp Row (Indented 36px under Sender Name)
           Row(
@@ -275,8 +368,9 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
                               children: [
                                 if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                                   _buildReplyPreviewBox(widget.message, false, isDark),
-                                Text(
-                                  widget.message.msg,
+                                LinkifyText(
+                                  text: widget.message.msg,
+                                  isMe: false,
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: isDark ? Colors.white : Colors.black,
@@ -359,8 +453,9 @@ class _GroupMessageCardState extends State<GroupMessageCard> {
                               children: [
                                 if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                                   _buildReplyPreviewBox(widget.message, true, isDark),
-                                Text(
-                                  widget.message.msg,
+                                LinkifyText(
+                                  text: widget.message.msg,
+                                  isMe: true,
                                   style: const TextStyle(
                                     fontSize: 16,
                                     color: Colors.white,

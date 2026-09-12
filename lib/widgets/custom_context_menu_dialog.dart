@@ -170,10 +170,7 @@ class CustomContextMenuDialog extends StatelessWidget {
       ),
     );
 
-    final Widget interactiveMenuBox = GestureDetector(
-      onTap: () {}, // Absorb taps on the popover card itself
-      child: menuBox,
-    );
+    final Widget interactiveMenuBox = menuBox;
 
     if (targetOffset != null) {
       final topPadding = MediaQuery.of(context).padding.top + 40;
@@ -190,35 +187,43 @@ class CustomContextMenuDialog extends StatelessWidget {
       if (left < 16) left = 16;
       if (left + 265 > screenSize.width - 16) left = screenSize.width - 265 - 16;
 
-      return GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => Navigator.pop(context),
-        child: Material(
-          color: Colors.transparent,
-          child: Stack(
-            children: [
-              Positioned(
-                top: top,
-                left: left,
-                child: interactiveMenuBox,
+      return Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.pop(context),
               ),
-            ],
-          ),
+            ),
+            Positioned(
+              top: top,
+              left: left,
+              child: interactiveMenuBox,
+            ),
+          ],
         ),
       );
     }
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => Navigator.pop(context),
-      child: Center(
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            child: interactiveMenuBox,
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.pop(context),
+            ),
           ),
-        ),
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              child: interactiveMenuBox,
+            ),
+          ),
+        ],
       ),
     );
   }

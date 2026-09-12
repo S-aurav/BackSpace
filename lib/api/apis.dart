@@ -533,6 +533,23 @@ class APIs {
     }
   }
 
+  // for directly adding a user to my_users by their user ID
+  static Future<bool> addChatUserById(String userId) async {
+    try {
+      if (userId.isEmpty || userId == user.uid) return false;
+      await firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('my_users')
+          .doc(userId)
+          .set({});
+      return true;
+    } catch (e) {
+      log('Error addChatUserById: $e');
+      return false;
+    }
+  }
+
   static StreamSubscription? _selfInfoSubscription;
 
   // for getting current user info in real-time
@@ -1540,21 +1557,49 @@ class APIs {
   // Update group info
   static Future<void> updateGroupInfo(GroupChat group, String name, String description, File? newImage) async {
     try {
-      String imageUrl = group.image;
+      // Fetch fresh existing data from Firestore so we accurately detect differences
+      // even if local state was already modified.
+      final doc = await firestore.collection('groups').doc(group.id).get();
+      final freshData = doc.data() ?? {};
+      final String prevDesc = (freshData['description'] ?? group.description ?? '').toString();
+      final String prevName = (freshData['name'] ?? group.name ?? '').toString();
+      final String prevImage = (freshData['image'] ?? group.image ?? '').toString();
+
+      String imageUrl = prevImage.isNotEmpty ? prevImage : group.image;
+      bool imageChanged = false;
+
       if (newImage != null) {
         final uploaded = await uploadToCloudinary(
           file: newImage,
           filename: 'group_${group.id}_${DateTime.now().millisecondsSinceEpoch}.jpg',
           resourceType: 'image',
         );
-        if (uploaded != null) imageUrl = uploaded;
+        if (uploaded != null && uploaded.isNotEmpty) {
+          imageUrl = uploaded;
+          imageChanged = true;
+        }
       }
 
+      final bool descChanged = description.trim() != prevDesc.trim();
+      final bool nameChanged = name.trim() != prevName.trim();
+
       await firestore.collection('groups').doc(group.id).update({
-        'name': name,
-        'description': description,
+        'name': name.trim(),
+        'description': description.trim(),
         'image': imageUrl,
       });
+
+      final sender = me.name.isNotEmpty ? me.name : (user.displayName ?? 'A member');
+
+      if (imageChanged) {
+        await sendGroupMessage(group, '$sender changed this group\'s icon', Type.system);
+      }
+      if (descChanged) {
+        await sendGroupMessage(group, '$sender changed the group description', Type.system);
+      }
+      if (nameChanged) {
+        await sendGroupMessage(group, '$sender changed the group name to "$name"', Type.system);
+      }
     } catch (e) {
       log('Error updateGroupInfo: $e');
     }
@@ -1717,9 +1762,17 @@ class APIs {
   }
 
   // Launch external URL in browser
+  // Launch external URL in browser
   static Future<void> openUrl(String urlStr) async {
     try {
-      final uri = Uri.parse(urlStr);
+      String cleanUrl = urlStr.trim();
+      if (cleanUrl.isEmpty) return;
+      if (cleanUrl.contains('@') && !cleanUrl.startsWith(RegExp(r'mailto:', caseSensitive: false))) {
+        cleanUrl = 'mailto:$cleanUrl';
+      } else if (!cleanUrl.startsWith(RegExp(r'^(https?:\/\/|mailto:|tel:)', caseSensitive: false))) {
+        cleanUrl = 'https://$cleanUrl';
+      }
+      final uri = Uri.parse(cleanUrl);
       final launched = await launchUrl(
         uri,
         mode: LaunchMode.externalApplication,

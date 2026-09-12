@@ -13,6 +13,8 @@ import '../main.dart';
 import '../models/chat_user.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../widgets/linkify_text.dart';
+import 'chat_screen.dart';
 
 // View profile screen -- to view profile of another user with Light/Dark Theme Support
 class ViewProfileScreen extends StatefulWidget {
@@ -237,6 +239,78 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                                 ),
                               ),
 
+                              // Quick Message & Add Contact Action Buttons (if not viewing own profile)
+                              if (user.id != APIs.user.uid) ...[
+                                const SizedBox(height: 14),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    CupertinoButton(
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                      color: const Color(0xFF007AFF),
+                                      borderRadius: BorderRadius.circular(20),
+                                      onPressed: () async {
+                                        await APIs.addChatUserById(user.id);
+                                        if (user.email.isNotEmpty) {
+                                          await APIs.addChatUser(user.email);
+                                        }
+                                        if (context.mounted) {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (_) => ChatScreen(user: user)),
+                                          );
+                                        }
+                                      },
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(CupertinoIcons.chat_bubble_fill, color: Colors.white, size: 18),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Message',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    CupertinoButton(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                      color: const Color(0xFF007AFF).withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(20),
+                                      onPressed: () async {
+                                        await APIs.addChatUserById(user.id);
+                                        if (user.email.isNotEmpty) {
+                                          await APIs.addChatUser(user.email);
+                                        }
+                                        if (context.mounted) {
+                                          Dialogs.showSnackbar(context, '${user.name} added to your contacts!');
+                                        }
+                                      },
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(CupertinoIcons.person_badge_plus, color: Color(0xFF007AFF), size: 18),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Add Contact',
+                                            style: TextStyle(
+                                              color: Color(0xFF007AFF),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+
                               const SizedBox(height: 16),
                               Divider(color: ThemeController.dividerColor, height: 1, thickness: 0.5),
                               const SizedBox(height: 16),
@@ -250,8 +324,8 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                                     style: TextStyle(color: ThemeController.subtextColor, fontWeight: FontWeight.w500, fontSize: 15),
                                   ),
                                   Expanded(
-                                    child: Text(
-                                      user.about.isNotEmpty ? user.about : 'Hey there! I am using BackSpace.',
+                                    child: LinkifyText(
+                                      text: user.about.isNotEmpty ? user.about : 'Hey there! I am using BackSpace.',
                                       style: TextStyle(
                                         color: ThemeController.textColor,
                                         fontSize: 15,

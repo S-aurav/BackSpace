@@ -16,6 +16,7 @@ import '../widgets/dialogs/whats_new_dialog.dart';
 import '../widgets/group_user_card.dart';
 import '../widgets/status_tray.dart';
 import 'create_group_screen.dart';
+import 'profile_qr_screen.dart';
 import 'settings_screen.dart';
 
 // Home Screen -- Authentic iOS iMessage Clone with Groups & Direct Messages
@@ -54,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // 1. Check for App Update with Release Notes
       final updateInfo = await APIs.fetchAppUpdateInfo();
-      const currentVersion = '2.1.0';
+      const currentVersion = '2.2.0';
 
       if (updateInfo != null && updateInfo.latestVersion != currentVersion) {
         if (mounted) {
@@ -149,6 +150,23 @@ class _HomeScreenState extends State<HomeScreen> {
               centerTitle: false,
               titleSpacing: 18,
               actions: [
+                GestureDetector(
+                  onTap: () {
+                    _searchFocusNode.unfocus();
+                    FocusScope.of(context).unfocus();
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfileQrScreen()),
+                    );
+                  },
+                  child: const Icon(
+                    CupertinoIcons.qrcode,
+                    color: Color(0xFF007AFF),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
                 GestureDetector(
                   onTap: () {
                     _searchFocusNode.unfocus();

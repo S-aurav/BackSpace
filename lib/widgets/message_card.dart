@@ -19,6 +19,7 @@ import '../models/message.dart';
 import 'custom_context_menu_dialog.dart';
 import 'full_screen_image_viewer.dart';
 import 'full_screen_video_viewer.dart';
+import 'linkify_text.dart';
 
 // Authentic 1:1 iOS iMessage Chat Bubble with Dynamic Light/Dark Theme Support
 class MessageCard extends StatefulWidget {
@@ -212,8 +213,9 @@ class _MessageCardState extends State<MessageCard> {
                           children: [
                             if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                               _buildReplyPreviewBox(widget.message, false, isDark),
-                            Text(
-                              widget.message.msg,
+                            LinkifyText(
+                              text: widget.message.msg,
+                              isMe: false,
                               style: TextStyle(
                                 fontSize: 16,
                                 color: isDark ? Colors.white : Colors.black,
@@ -296,8 +298,9 @@ class _MessageCardState extends State<MessageCard> {
                               children: [
                                 if (widget.message.replyToMsg != null && widget.message.replyToMsg!.isNotEmpty)
                                   _buildReplyPreviewBox(widget.message, true, isDark),
-                                Text(
-                                  widget.message.msg,
+                                LinkifyText(
+                                  text: widget.message.msg,
+                                  isMe: true,
                                   style: const TextStyle(fontSize: 16, color: Colors.white, height: 1.25),
                                 ),
                               ],

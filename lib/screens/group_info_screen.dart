@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -18,6 +19,9 @@ import '../models/group.dart';
 import '../widgets/add_group_members_sheet.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../widgets/linkify_text.dart';
+import 'chat_screen.dart';
+import 'profile_screen.dart';
 import 'view_profile_screen.dart';
 
 // Group Info Screen -- Details, Members List, Admin Management & Leave Group
@@ -32,42 +36,33 @@ class GroupInfoScreen extends StatefulWidget {
 
 class _GroupInfoScreenState extends State<GroupInfoScreen> {
   late GroupChat _group;
-  List<ChatUser> _membersList = [];
-  bool _isLoadingMembers = true;
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _groupDocStream;
 
   @override
   void initState() {
     super.initState();
     _group = widget.group;
-    _fetchMembers();
-  }
-
-  Future<void> _fetchMembers() async {
-    final List<ChatUser> loaded = [];
-    for (final memberId in _group.members) {
-      final user = await APIs.getUserById(memberId);
-      if (user != null) loaded.add(user);
-    }
-    if (mounted) {
-      setState(() {
-        _membersList = loaded;
-        _isLoadingMembers = false;
-      });
-    }
+    _groupDocStream = APIs.firestore.collection('groups').doc(widget.group.id).snapshots();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = ThemeController.isDark;
-    final isAdmin = _group.admins.contains(APIs.user.uid);
-    final isMember = _group.members.contains(APIs.user.uid);
-    final isMuted = APIs.isChatMuted(_group.id);
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: _groupDocStream,
+      builder: (context, groupSnapshot) {
+        if (groupSnapshot.hasData && groupSnapshot.data?.data() != null) {
+          _group = GroupChat.fromJson(groupSnapshot.data!.data()!);
+        }
 
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: ThemeController.themeMode,
-      builder: (context, mode, child) {
-        return Scaffold(
-          backgroundColor: ThemeController.bgColor,
+        final isDark = ThemeController.isDark;
+        final isMember = _group.members.contains(APIs.user.uid) || _group.createdBy == APIs.user.uid;
+        final isMuted = APIs.isChatMuted(_group.id);
+
+        return ValueListenableBuilder<ThemeMode>(
+          valueListenable: ThemeController.themeMode,
+          builder: (context, mode, child) {
+            return Scaffold(
+              backgroundColor: ThemeController.bgColor,
           extendBodyBehindAppBar: true,
           appBar: AppBar(
             toolbarHeight: 56,
@@ -259,15 +254,21 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                               ],
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              _group.description.isNotEmpty ? _group.description : (isMember ? 'Tap to add group description...' : 'No description set.'),
-                              style: TextStyle(
-                                color: _group.description.isNotEmpty
-                                    ? ThemeController.textColor
-                                    : ThemeController.subtextColor,
-                                fontSize: 15,
-                              ),
-                            ),
+                            _group.description.isNotEmpty
+                                ? LinkifyText(
+                                    text: _group.description,
+                                    style: TextStyle(
+                                      color: ThemeController.textColor,
+                                      fontSize: 15,
+                                    ),
+                                  )
+                                : Text(
+                                    isMember ? 'Tap to add group description...' : 'No description set.',
+                                    style: TextStyle(
+                                      color: ThemeController.subtextColor,
+                                      fontSize: 15,
+                                    ),
+                                  ),
                           ],
                         ),
                       ),
@@ -344,7 +345,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                         letterSpacing: 0.5,
                       ),
                     ),
-                    if (isAdmin)
+                    if (isMember)
                       GestureDetector(
                         onTap: _showAddMembersModal,
                         child: const Row(
@@ -396,8 +397,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Add Members top tile for admins
-                              if (isAdmin) ...[
+                              // Add Members top tile for all group members
+                              if (isMember) ...[
                                 ListTile(
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                                   onTap: _showAddMembersModal,
@@ -442,17 +443,24 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                               final isCurrentUser = member.id == APIs.user.uid;
                               final isOnline = MyDateUtil.isUserOnline(isOnline: member.isOnline, lastActive: member.lastActive);
 
-                               Offset? tapPos;
-                               return GestureDetector(
-                                 onLongPressDown: (details) => tapPos = details.globalPosition,
-                                 child: ListTile(
+                                 return ListTile(
                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                                   onLongPress: () {
-                                     if (isAdmin && !isCurrentUser) {
-                                       _showMemberOptionsSheet(member, isMemberAdmin, targetOffset: tapPos);
+                                   onTap: () {
+                                     if (isCurrentUser) {
+                                       Navigator.push(
+                                         context,
+                                         MaterialPageRoute(builder: (_) => ProfileScreen(user: APIs.me)),
+                                       );
+                                     } else {
+                                       _showMemberOptionsSheet(member, isMemberAdmin);
                                      }
                                    },
-                                leading: Stack(
+                                   onLongPress: () {
+                                     if (!isCurrentUser) {
+                                       _showMemberOptionsSheet(member, isMemberAdmin);
+                                     }
+                                   },
+                                   leading: Stack(
                                   children: [
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(20),
@@ -518,8 +526,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                                       ),
                                   ],
                                 ),
-                              ),
-                            );
+                              );
                             },
                           ),
                         ],
@@ -562,6 +569,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             ),
           ),
         );
+      },
+    );
       },
     );
   }
@@ -662,11 +671,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             onPressed: () async {
               final trimmedDesc = newDesc.trim();
               Navigator.pop(dialogContext);
-              setState(() {
-                _group.description = trimmedDesc;
-              });
               await APIs.updateGroupInfo(_group, _group.name, trimmedDesc, null);
               if (mounted) {
+                setState(() {
+                  _group.description = trimmedDesc;
+                });
                 Dialogs.showSnackbar(context, 'Group description updated successfully!');
               }
             },
@@ -677,60 +686,133 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     );
   }
 
-  // Show Member Long Press Options Context Menu
-  void _showMemberOptionsSheet(ChatUser member, bool isMemberAdmin, {Offset? targetOffset}) {
+  // Show Member Options Action Sheet (Native Cupertino / WhatsApp style)
+  void _showMemberOptionsSheet(ChatUser member, bool isMemberAdmin) {
+    final bool isAdmin = _group.admins.contains(APIs.user.uid);
     final bool isOwner = _group.createdBy == APIs.user.uid;
 
-    CustomContextMenuDialog.show(
+    showCupertinoModalPopup(
       context: context,
-      title: member.name,
-      targetOffset: targetOffset,
-      items: [
-        if (!isMemberAdmin)
-          ContextMenuItem(
-            title: 'Make Group Admin',
-            icon: CupertinoIcons.shield_fill,
-            onTap: () async {
-              await APIs.makeGroupAdmin(_group, member.id);
-              setState(() {
-                if (!_group.admins.contains(member.id)) {
-                  _group.admins.add(member.id);
-                }
-              });
-              if (mounted) Dialogs.showSnackbar(context, '${member.name} is now a Group Admin!');
-            },
-          ),
-        if (isOwner && isMemberAdmin && member.id != _group.createdBy)
-          ContextMenuItem(
-            title: 'Dismiss as Admin',
-            icon: CupertinoIcons.shield_slash_fill,
-            onTap: () async {
-              await APIs.removeGroupAdmin(_group, member.id);
-              setState(() {
-                _group.admins.remove(member.id);
-              });
-              if (mounted) Dialogs.showSnackbar(context, '${member.name} is no longer an Admin');
-            },
-          ),
-        ContextMenuItem(
-          title: 'View Profile',
-          icon: CupertinoIcons.person_crop_circle,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ViewProfileScreen(user: member)),
-            );
-          },
+      builder: (sheetContext) => CupertinoActionSheet(
+        title: Text(
+          member.name,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
         ),
-        ContextMenuItem(
-          title: 'Remove from Group',
-          icon: CupertinoIcons.person_badge_minus,
-          isDestructive: true,
-          onTap: () {
-            _removeMember(member);
-          },
+        message: Text(member.about.isNotEmpty ? member.about : member.email),
+        actions: [
+          // 1. WhatsApp style "Message <Name>" option
+          CupertinoActionSheetAction(
+            onPressed: () async {
+              Navigator.pop(sheetContext);
+              // Establish contact relationship in my_users
+              await APIs.addChatUserById(member.id);
+              if (member.email.isNotEmpty) {
+                await APIs.addChatUser(member.email);
+              }
+              if (mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => ChatScreen(user: member)),
+                );
+              }
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(CupertinoIcons.chat_bubble_fill, color: Color(0xFF007AFF), size: 20),
+                const SizedBox(width: 8),
+                Text('Message ${member.name}', style: const TextStyle(color: Color(0xFF007AFF), fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+
+          // 2. Add to Contacts
+          CupertinoActionSheetAction(
+            onPressed: () async {
+              Navigator.pop(sheetContext);
+              await APIs.addChatUserById(member.id);
+              if (member.email.isNotEmpty) {
+                await APIs.addChatUser(member.email);
+              }
+              if (mounted) {
+                Dialogs.showSnackbar(context, '${member.name} added to your contacts!');
+              }
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.person_badge_plus, color: Color(0xFF007AFF), size: 20),
+                SizedBox(width: 8),
+                Text('Add to Contacts', style: TextStyle(color: Color(0xFF007AFF))),
+              ],
+            ),
+          ),
+
+          // 3. View Profile
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(sheetContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ViewProfileScreen(user: member)),
+              );
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.person_crop_circle, color: Color(0xFF007AFF), size: 20),
+                SizedBox(width: 8),
+                Text('View Profile', style: TextStyle(color: Color(0xFF007AFF))),
+              ],
+            ),
+          ),
+
+          // 4. Admin: Make Group Admin
+          if (isAdmin && !isMemberAdmin)
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.pop(sheetContext);
+                await APIs.makeGroupAdmin(_group, member.id);
+                setState(() {
+                  if (!_group.admins.contains(member.id)) {
+                    _group.admins.add(member.id);
+                  }
+                });
+                if (mounted) Dialogs.showSnackbar(context, '${member.name} is now a Group Admin!');
+              },
+              child: const Text('Make Group Admin', style: TextStyle(color: Color(0xFF007AFF))),
+            ),
+
+          // 5. Admin: Dismiss as Admin
+          if (isAdmin && isOwner && isMemberAdmin && member.id != _group.createdBy)
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.pop(sheetContext);
+                await APIs.removeGroupAdmin(_group, member.id);
+                setState(() {
+                  _group.admins.remove(member.id);
+                });
+                if (mounted) Dialogs.showSnackbar(context, '${member.name} is no longer an Admin');
+              },
+              child: const Text('Dismiss as Admin', style: TextStyle(color: Color(0xFF007AFF))),
+            ),
+
+          // 6. Admin: Remove from Group
+          if (isAdmin)
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.pop(sheetContext);
+                _removeMember(member);
+              },
+              child: const Text('Remove from Group'),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(sheetContext),
+          child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
-      ],
+      ),
     );
   }
 
@@ -751,8 +833,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             onPressed: () async {
               Navigator.pop(context);
               await APIs.removeGroupMember(_group, member.id);
-              _group.members.remove(member.id);
-              _fetchMembers();
+              if (mounted) {
+                setState(() {
+                  _group.members.remove(member.id);
+                });
+              }
             },
             child: const Text('Remove'),
           ),

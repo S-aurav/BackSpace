@@ -14,6 +14,7 @@ import '../helper/dialogs.dart';
 import '../helper/theme_controller.dart';
 import '../main.dart';
 import '../models/chat_user.dart';
+import '../widgets/linkify_text.dart';
 
 // Profile screen -- Adapts dynamically to Light/Dark Mode with frosted glass iOS cards & iMessage edit dialogs
 class ProfileScreen extends StatefulWidget {
@@ -226,8 +227,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                                subtitle: Text(
-                                  APIs.me.about.isNotEmpty ? APIs.me.about : widget.user.about,
+                                subtitle: LinkifyText(
+                                  text: APIs.me.about.isNotEmpty ? APIs.me.about : widget.user.about,
                                   style: TextStyle(
                                     color: ThemeController.textColor,
                                     fontSize: 16,

@@ -308,9 +308,11 @@ class _GroupUserCardState extends State<GroupUserCard> {
                           const SizedBox(height: 3),
                           Text(
                             _lastMessage != null
-                                ? (_lastMessage!.senderName != null && _lastMessage!.senderName!.isNotEmpty
-                                    ? '${_lastMessage!.senderName}: ${_lastMessage!.type == Type.image ? '📷 Photo' : _lastMessage!.type == Type.video ? '🎥 Video' : _lastMessage!.msg}'
-                                    : _lastMessage!.msg)
+                                ? (_lastMessage!.type == Type.system
+                                    ? _lastMessage!.msg
+                                    : (_lastMessage!.senderName != null && _lastMessage!.senderName!.isNotEmpty
+                                        ? '${_lastMessage!.senderName}: ${_lastMessage!.type == Type.image ? '📷 Photo' : _lastMessage!.type == Type.video ? '🎥 Video' : _lastMessage!.msg}'
+                                        : _lastMessage!.msg))
                                 : (group.lastMessageSenderName.isNotEmpty
                                     ? '${group.lastMessageSenderName}: ${group.lastMessage}'
                                     : group.lastMessage),
