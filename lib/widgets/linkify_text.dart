@@ -36,9 +36,12 @@ class _LinkifyTextState extends State<LinkifyText> {
   final List<TapGestureRecognizer> _recognizers = [];
   late List<InlineSpan> _spans;
 
-  // Regex matching http://, https://, www., or standard domain TLD links
+  // Regex matching http://, https://, www., emails, and multi-subdomain naked domains (e.g. backspace.dpdns.org, sub.domain.co.in)
   static final RegExp _urlRegex = RegExp(
-    r'(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9][-a-zA-Z0-9]*\.(com|org|net|edu|gov|io|ai|dev|app|co|in|me|info|biz|tv|cc|to|tech|online|store|site|xyz|live|link|cloud|club|gg|ly|sh|so)\b([^\s]*))',
+    r'(https?:\/\/[^\s<>"' r"'" r'{}|\\^`]+)|'
+    r'(www\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?::\d{1,5})?(?:\/[^\s<>"' r"'" r'{}|\\^`]*)?)|'
+    r'(\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b)|'
+    r'((?<![\w@])(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+(?:com|org|net|edu|gov|mil|int|io|ai|dev|app|co|in|me|info|biz|tv|cc|to|tech|online|store|site|xyz|live|link|cloud|club|gg|ly|sh|so|top|pro|icu|vip|work|click|press|news|blog|guru|world|space|design|art|agency|digital|email|solutions|systems|network|center|media|company|zone|today|group|team|run|wiki|page|community|fund|life|events|expert|services|consulting|management|technology|uk|us|eu|de|fr|jp|cn|ru|br|au|ca|it|nl|se|no|es|ch|at|be|dk|fi|pl|cz|ie|nz|kr|sg|hk|my|za|mx|id|ph|cl|ar|pk|ng|bd|th|vn|ro|hu|gr|pt|ae|sa|il|is)\b(?::\d{1,5})?(?:\/[^\s<>"' r"'" r'{}|\\^`]*)?)',
     caseSensitive: false,
   );
 
@@ -165,6 +168,7 @@ class _LinkifyTextState extends State<LinkifyText> {
             text: cleanUrl,
             style: effectiveLinkStyle,
             recognizer: recognizer,
+            mouseCursor: SystemMouseCursors.click,
           ),
         );
       }

@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +13,7 @@ import '../widgets/adaptive_blur.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/linkify_text.dart';
+import 'chat_screen.dart';
 
 // View profile screen -- to view profile of another user with Light/Dark Theme Support
 class ViewProfileScreen extends StatefulWidget {
@@ -236,6 +235,40 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                                   fontSize: 14,
                                 ),
                               ),
+
+                              // Quick Message Action Button (if not viewing own profile)
+                              if (user.id != APIs.user.uid) ...[
+                                const SizedBox(height: 14),
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                                  color: const Color(0xFF007AFF),
+                                  borderRadius: BorderRadius.circular(20),
+                                  onPressed: () async {
+                                    await APIs.addChatUser(user.email);
+                                    if (context.mounted) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (_) => ChatScreen(user: user)),
+                                      );
+                                    }
+                                  },
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(CupertinoIcons.chat_bubble_fill, color: Colors.white, size: 18),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Message',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
 
                               const SizedBox(height: 16),
                               Divider(color: ThemeController.dividerColor, height: 1, thickness: 0.5),

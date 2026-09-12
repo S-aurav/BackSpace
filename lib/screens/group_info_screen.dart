@@ -1,7 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'dart:ui';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +17,8 @@ import '../widgets/add_group_members_sheet.dart';
 import '../widgets/custom_context_menu_dialog.dart';
 import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/linkify_text.dart';
+import 'chat_screen.dart';
+import 'profile_screen.dart';
 import 'view_profile_screen.dart';
 
 // Group Info Screen -- Details, Members List, Admin Management & Leave Group
@@ -33,34 +33,15 @@ class GroupInfoScreen extends StatefulWidget {
 
 class _GroupInfoScreenState extends State<GroupInfoScreen> {
   late GroupChat _group;
-  List<ChatUser> _membersList = [];
-  bool _isLoadingMembers = true;
 
   @override
   void initState() {
     super.initState();
     _group = widget.group;
-    _fetchMembers();
-  }
-
-  Future<void> _fetchMembers() async {
-    final List<ChatUser> loaded = [];
-    for (final memberId in _group.members) {
-      final user = await APIs.getUserById(memberId);
-      if (user != null) loaded.add(user);
-    }
-    if (mounted) {
-      setState(() {
-        _membersList = loaded;
-        _isLoadingMembers = false;
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = ThemeController.isDark;
-    final isAdmin = _group.admins.contains(APIs.user.uid);
     final isMember = _group.members.contains(APIs.user.uid);
     final isMuted = APIs.isChatMuted(_group.id);
 
@@ -346,7 +327,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                         letterSpacing: 0.5,
                       ),
                     ),
-                    if (isAdmin)
+                    if (isMember)
                       GestureDetector(
                         onTap: _showAddMembersModal,
                         child: const Row(
@@ -397,8 +378,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Add Members top tile for admins
-                              if (isAdmin) ...[
+                              // Add Members top tile for any group member
+                              if (isMember) ...[
                                 ListTile(
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                                   onTap: _showAddMembersModal,
@@ -445,11 +426,22 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
 
                                Offset? tapPos;
                                return GestureDetector(
+                                 onTapDown: (details) => tapPos = details.globalPosition,
                                  onLongPressDown: (details) => tapPos = details.globalPosition,
                                  child: ListTile(
                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                                   onTap: () {
+                                     if (isCurrentUser) {
+                                       Navigator.push(
+                                         context,
+                                         MaterialPageRoute(builder: (_) => ProfileScreen(user: APIs.me)),
+                                       );
+                                     } else {
+                                       _showMemberOptionsSheet(member, isMemberAdmin, targetOffset: tapPos);
+                                     }
+                                   },
                                    onLongPress: () {
-                                     if (isAdmin && !isCurrentUser) {
+                                     if (!isCurrentUser) {
                                        _showMemberOptionsSheet(member, isMemberAdmin, targetOffset: tapPos);
                                      }
                                    },
@@ -677,8 +669,9 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     );
   }
 
-  // Show Member Long Press Options Context Menu
+  // Show Member Options Context Menu (Tap or Long Press)
   void _showMemberOptionsSheet(ChatUser member, bool isMemberAdmin, {Offset? targetOffset}) {
+    final bool isAdmin = _group.admins.contains(APIs.user.uid);
     final bool isOwner = _group.createdBy == APIs.user.uid;
 
     CustomContextMenuDialog.show(
@@ -686,7 +679,36 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       title: member.name,
       targetOffset: targetOffset,
       items: [
-        if (!isMemberAdmin)
+        // 1. WhatsApp style "Message <Name>" option
+        ContextMenuItem(
+          title: 'Message ${member.name}',
+          icon: CupertinoIcons.chat_bubble_fill,
+          onTap: () async {
+            // Establish contact relationship in my_users
+            await APIs.addChatUser(member.email);
+            if (mounted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ChatScreen(user: member)),
+              );
+            }
+          },
+        ),
+
+        // 2. View Profile
+        ContextMenuItem(
+          title: 'View Profile',
+          icon: CupertinoIcons.person_crop_circle,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ViewProfileScreen(user: member)),
+            );
+          },
+        ),
+
+        // 3. Admin-only management options
+        if (isAdmin && !isMemberAdmin)
           ContextMenuItem(
             title: 'Make Group Admin',
             icon: CupertinoIcons.shield_fill,
@@ -700,7 +722,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               if (mounted) Dialogs.showSnackbar(context, '${member.name} is now a Group Admin!');
             },
           ),
-        if (isOwner && isMemberAdmin && member.id != _group.createdBy)
+        if (isAdmin && isOwner && isMemberAdmin && member.id != _group.createdBy)
           ContextMenuItem(
             title: 'Dismiss as Admin',
             icon: CupertinoIcons.shield_slash_fill,
@@ -712,24 +734,15 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               if (mounted) Dialogs.showSnackbar(context, '${member.name} is no longer an Admin');
             },
           ),
-        ContextMenuItem(
-          title: 'View Profile',
-          icon: CupertinoIcons.person_crop_circle,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ViewProfileScreen(user: member)),
-            );
-          },
-        ),
-        ContextMenuItem(
-          title: 'Remove from Group',
-          icon: CupertinoIcons.person_badge_minus,
-          isDestructive: true,
-          onTap: () {
-            _removeMember(member);
-          },
-        ),
+        if (isAdmin)
+          ContextMenuItem(
+            title: 'Remove from Group',
+            icon: CupertinoIcons.person_badge_minus,
+            isDestructive: true,
+            onTap: () {
+              _removeMember(member);
+            },
+          ),
       ],
     );
   }
@@ -751,8 +764,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             onPressed: () async {
               Navigator.pop(context);
               await APIs.removeGroupMember(_group, member.id);
-              _group.members.remove(member.id);
-              _fetchMembers();
+              if (mounted) {
+                setState(() {
+                  _group.members.remove(member.id);
+                });
+              }
             },
             child: const Text('Remove'),
           ),

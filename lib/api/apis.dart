@@ -1836,7 +1836,9 @@ class APIs {
     try {
       String cleanUrl = urlStr.trim();
       if (cleanUrl.isEmpty) return;
-      if (!cleanUrl.startsWith(RegExp(r'https?:\/\/', caseSensitive: false))) {
+      if (cleanUrl.contains('@') && !cleanUrl.startsWith(RegExp(r'mailto:', caseSensitive: false))) {
+        cleanUrl = 'mailto:$cleanUrl';
+      } else if (!cleanUrl.startsWith(RegExp(r'^(https?:\/\/|mailto:|tel:)', caseSensitive: false))) {
         cleanUrl = 'https://$cleanUrl';
       }
       final uri = Uri.parse(cleanUrl);

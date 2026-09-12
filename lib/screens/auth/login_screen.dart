@@ -120,6 +120,20 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       );
 
       return await APIs.auth.signInWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      log('_signInWithGoogle FirebaseAuthException: ${e.code} - ${e.message}');
+      if (mounted) {
+        String msg = 'Google sign-in failed. Please try again.';
+        if (e.code == 'unauthorized-domain') {
+          msg = 'Domain not authorized! Add your custom domain to Firebase Console > Authentication > Settings > Authorized domains.';
+        } else if (e.code == 'popup-closed-by-user') {
+          msg = 'Sign-in window was closed.';
+        } else if (e.message != null && e.message!.isNotEmpty) {
+          msg = e.message!;
+        }
+        Dialogs.showSnackbar(context, msg);
+      }
+      return null;
     } catch (e, stackTrace) {
       log('_signInWithGoogle error: $e\n$stackTrace');
       if (mounted) {
