@@ -25,13 +25,16 @@ import '../screens/chat_screen.dart';
 import '../screens/group_chat_screen.dart';
 import '../widgets/in_app_notification_banner.dart';
 import '../helper/notification_service.dart';
+import '../helper/web_notification/web_notification.dart';
 
 class APIs {
   // Cached KLIPY API key
   static String? _cachedKlipyApiKey;
 
   /// Fetches App Update Info and release notes from Firestore config/app_version
+  /// Bypassed on Web (web is always running the latest deployed version)
   static Future<AppUpdateInfo?> fetchAppUpdateInfo() async {
+    if (kIsWeb) return null;
     try {
       final doc = await firestore.collection('config').doc('app_version').get();
       if (doc.exists && doc.data() != null) {
@@ -396,6 +399,25 @@ class APIs {
     }
   }
 
+  /// Request notifications permission and sync FCM push token to Firestore
+  static Future<String> enableNotifications() async {
+    final status = await requestNotificationPermission();
+    if (status == 'granted') {
+      await getFirebaseMessagingToken();
+    }
+    return status;
+  }
+
+  /// Send a test notification to verify delivery
+  static Future<void> sendTestNotification() async {
+    await NotificationService.showMessageNotification(
+      title: '🔔 BackSpace Notifications',
+      body: 'Notifications are active and working properly!',
+      senderId: 'backspace_test',
+      senderImage: me.image,
+    );
+  }
+
   static StreamSubscription? _inAppMessageSubscription;
 
   // Real-time Firestore stream listener for instant cross-chat in-app banners
@@ -591,6 +613,23 @@ class APIs {
     } else {
       //user doesn't exists
 
+      return false;
+    }
+  }
+
+  // for directly adding a user to my_users by their user ID
+  static Future<bool> addChatUserById(String userId) async {
+    try {
+      if (userId.isEmpty || userId == user.uid) return false;
+      await firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('my_users')
+          .doc(userId)
+          .set({});
+      return true;
+    } catch (e) {
+      log('Error addChatUserById: $e');
       return false;
     }
   }

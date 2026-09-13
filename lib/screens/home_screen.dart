@@ -1,8 +1,8 @@
 import 'dart:developer';
-import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../api/apis.dart';
@@ -53,15 +53,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _checkAppUpdateAndAnnouncements() async {
     try {
-      // 1. Check for App Update with Release Notes
-      final updateInfo = await APIs.fetchAppUpdateInfo();
-      const currentVersion = '2.1.0';
+      // 1. Check for App Update with Release Notes (Mobile native only - Web is always on latest hosted release)
+      if (!kIsWeb) {
+        final updateInfo = await APIs.fetchAppUpdateInfo();
+        const currentVersion = '2.2.0';
 
-      if (updateInfo != null && updateInfo.latestVersion != currentVersion) {
-        if (mounted) {
-          WhatsNewDialog.show(context: context, updateInfo: updateInfo);
+        if (updateInfo != null && updateInfo.latestVersion != currentVersion) {
+          if (mounted) {
+            WhatsNewDialog.show(context: context, updateInfo: updateInfo);
+          }
+          return; // Prioritize app update over general announcements
         }
-        return; // Prioritize app update over general announcements
       }
 
       // 2. Check for Public Announcements (if no update dialog shown)
@@ -148,23 +150,26 @@ class _HomeScreenState extends State<HomeScreen> {
               centerTitle: false,
               titleSpacing: 18,
               actions: [
-                GestureDetector(
-                  onTap: () {
-                    _searchFocusNode.unfocus();
-                    FocusScope.of(context).unfocus();
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                    );
-                  },
-                  child: const Icon(
-                    CupertinoIcons.ellipsis_circle,
-                    color: Color(0xFF007AFF),
-                    size: 24,
+                Tooltip(
+                  message: 'Settings',
+                  child: IconButton(
+                    icon: const Icon(
+                      CupertinoIcons.ellipsis_circle,
+                      color: Color(0xFF007AFF),
+                      size: 24,
+                    ),
+                    onPressed: () {
+                      _searchFocusNode.unfocus();
+                      FocusScope.of(context).unfocus();
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                      );
+                    },
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 8),
               ],
             ),
 

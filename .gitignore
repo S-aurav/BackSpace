@@ -3,6 +3,9 @@
 .pub-cache/
 .pub/
 build/
+.kotlin/
+.gradle/
+local_maven/
 
 # Node.js and Firebase Cloud Functions
 node_modules/

@@ -44,35 +44,100 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background-color: #000000;
+      background: radial-gradient(circle at 50% 45%, #16161C 0%, #000000 85%);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       z-index: 9999;
       transition: opacity 0.4s ease-out;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     }
-    #pwa-splash img {
-      width: 100px;
-      height: 100px;
-      border-radius: 24px;
-      box-shadow: 0 10px 30px rgba(0, 122, 255, 0.35);
-      animation: pulse 1.8s infinite ease-in-out;
+    .splash-logo-circle {
+      width: 116px;
+      height: 116px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 16px 45px rgba(0, 122, 255, 0.42), 0 0 0 3px rgba(255, 255, 255, 0.25);
+      animation: pulse 2.2s infinite ease-in-out;
+    }
+    .splash-logo-circle img {
+      width: 92px;
+      height: 92px;
+      border-radius: 50%;
+      object-fit: contain;
+      display: block;
+    }
+    .splash-brand {
+      margin-top: 24px;
+      color: #FFFFFF;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.6px;
+      opacity: 0.95;
+    }
+    .splash-brand span {
+      color: #007AFF;
     }
     @keyframes pulse {
-      0% { transform: scale(0.96); opacity: 0.85; }
-      50% { transform: scale(1.04); opacity: 1; }
-      100% { transform: scale(0.96); opacity: 0.85; }
+      0% { transform: scale(0.97); opacity: 0.88; }
+      50% { transform: scale(1.03); opacity: 1; }
+      100% { transform: scale(0.97); opacity: 0.88; }
     }
   </style>
 </head>
 <body>
   <!-- Native-feeling dark splash for iOS home screen launch -->
   <div id="pwa-splash">
-    <img src="favicon.png" alt="BackSpace">
+    <div class="splash-logo-circle">
+      <img src="favicon.png" alt="BackSpace">
+    </div>
+    <div class="splash-brand">Back<span>Space</span></div>
   </div>
 
   <script>
+    // Ensure mobile browsers (Chrome Android / iOS WebKit) play scanner video inline and muted
+    (function() {
+      try {
+        var origPlay = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = function() {
+          this.playsInline = true;
+          this.setAttribute('playsinline', '');
+          this.setAttribute('webkit-playsinline', '');
+          this.muted = true;
+          this.autoplay = true;
+          return origPlay.apply(this, arguments);
+        };
+      } catch (e) {
+        console.warn('Media element patch failed:', e);
+      }
+    })();
+
+    // Auto-purge stale PWA caches from older versions on Android/iOS/Desktop
+    (function() {
+      var CURRENT_BUILD = 'v2.3.0-notifications-v1';
+      try {
+        if (window.localStorage && localStorage.getItem('pwa_build_version') !== CURRENT_BUILD) {
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              names.forEach(function(name) { caches.delete(name); });
+            });
+          }
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              regs.forEach(function(reg) { reg.unregister(); });
+            });
+          }
+          localStorage.setItem('pwa_build_version', CURRENT_BUILD);
+        }
+      } catch (e) {
+        console.warn('Cache purge check failed:', e);
+      }
+    })();
+
     window.addEventListener('flutter-first-frame', function() {
       var splash = document.getElementById('pwa-splash');
       if (splash) {
@@ -90,6 +155,72 @@
           console.log('[FCM SW] Registration failed:', err);
         });
     }
+
+    // Helper to detect iOS devices (iPhone, iPad, iPod)
+    window.isIOSDevice = function() {
+      var ua = window.navigator.userAgent || '';
+      return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    };
+
+    // Helper to detect if running in Standalone PWA mode
+    window.isPWAStandalone = function() {
+      return (window.navigator.standalone === true) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    };
+
+    // Get current notification authorization status
+    window.getWebNotificationStatus = function() {
+      var isIOS = window.isIOSDevice();
+      var isStandalone = window.isPWAStandalone();
+
+      if (!("Notification" in window)) {
+        if (isIOS && !isStandalone) {
+          return 'ios_safari_needs_pwa';
+        }
+        return 'unsupported';
+      }
+
+      if (Notification.permission === 'granted') {
+        return 'granted';
+      } else if (Notification.permission === 'denied') {
+        return 'denied';
+      } else {
+        if (isIOS && !isStandalone) {
+          return 'ios_safari_needs_pwa';
+        }
+        return 'prompt';
+      }
+    };
+
+    // Request notification permission via explicit user gesture
+    window.requestWebNotificationPermission = function(callback) {
+      var isIOS = window.isIOSDevice();
+      var isStandalone = window.isPWAStandalone();
+
+      if (!("Notification" in window)) {
+        if (isIOS && !isStandalone) {
+          if (callback) callback('ios_safari_needs_pwa');
+          return;
+        }
+        if (callback) callback('unsupported');
+        return;
+      }
+
+      try {
+        var res = Notification.requestPermission();
+        if (res && typeof res.then === 'function') {
+          res.then(function(permission) {
+            if (callback) callback(permission);
+          }).catch(function() {
+            if (callback) callback('denied');
+          });
+        } else if (callback) {
+          callback(Notification.permission);
+        }
+      } catch (err) {
+        console.warn('requestPermission error:', err);
+        if (callback) callback('denied');
+      }
+    };
 
     // Native browser notification dispatcher
     window.showWebNotification = function(title, body, tag, icon) {
