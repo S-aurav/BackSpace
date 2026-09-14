@@ -567,9 +567,14 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                       // GIF button — just before emoji picker button
                       GestureDetector(
                         onTap: () {
+                          _focusNode.unfocus();
+                          FocusScope.of(context).unfocus();
+                          if (_showEmoji) setState(() => _showEmoji = false);
                           GifPickerSheet.show(
                             context: context,
                             onGifSelected: (gif) async {
+                              _focusNode.unfocus();
+                              FocusScope.of(context).unfocus();
                               if (_replyMessage != null) {
                                 final isMe = _replyMessage!.fromId == APIs.user.uid;
                                 final senderName = isMe
@@ -638,6 +643,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                       // Camera quick action
                       GestureDetector(
                         onTap: () async {
+                          _focusNode.unfocus();
+                          FocusScope.of(context).unfocus();
                           final ImagePicker picker = ImagePicker();
                           final XFile? image = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
                           if (image != null) {
@@ -664,8 +671,10 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                 onTap: () {
                   if (_textController.text.trim().isNotEmpty) {
                     final text = _textController.text.trim();
-                    _textController.text = '';
-                    _focusNode.unfocus();
+                    _textController.clear();
+                    if (!_showEmoji) {
+                      _focusNode.requestFocus();
+                    }
 
                     if (_replyMessage != null) {
                       final isMe = _replyMessage!.fromId == APIs.user.uid;

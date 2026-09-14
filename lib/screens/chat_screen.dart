@@ -530,9 +530,14 @@ class _ChatScreenState extends State<ChatScreen> {
                       // GIF button — just before emoji picker button
                       GestureDetector(
                         onTap: () {
+                          _focusNode.unfocus();
+                          FocusScope.of(context).unfocus();
+                          if (_showEmoji) setState(() => _showEmoji = false);
                           GifPickerSheet.show(
                             context: context,
                             onGifSelected: (gif) async {
+                              _focusNode.unfocus();
+                              FocusScope.of(context).unfocus();
                               if (_replyMessage != null) {
                                 final isMe = _replyMessage!.fromId == APIs.user.uid;
                                 final senderName = isMe ? APIs.me.name : widget.user.name;
@@ -597,6 +602,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       // Camera quick action — iMessage blue
                       GestureDetector(
                         onTap: () async {
+                          _focusNode.unfocus();
+                          FocusScope.of(context).unfocus();
                           final ImagePicker picker = ImagePicker();
                           final XFile? image = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
                           if (image != null) {
@@ -623,8 +630,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 onTap: () {
                   if (_textController.text.trim().isNotEmpty) {
                     final text = _textController.text.trim();
-                    _textController.text = '';
-                    _focusNode.unfocus();
+                    _textController.clear();
+                    if (!_showEmoji) {
+                      _focusNode.requestFocus();
+                    }
 
                     if (_replyMessage != null) {
                       final isMe = _replyMessage!.fromId == APIs.user.uid;
