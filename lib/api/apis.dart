@@ -27,7 +27,7 @@ import '../widgets/in_app_notification_banner.dart';
 
 class APIs {
   // Current app version matching pubspec.yaml
-  static const String appVersion = '2.2.2';
+  static const String appVersion = '2.3.0';
 
   /// Compare two semantic version strings (e.g. '2.2.3' vs '2.2.2')
   /// Returns true if [remoteVersion] is strictly newer than [installedVersion]
