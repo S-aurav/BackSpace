@@ -26,6 +26,34 @@ import '../screens/group_chat_screen.dart';
 import '../widgets/in_app_notification_banner.dart';
 
 class APIs {
+  // Current app version matching pubspec.yaml
+  static const String appVersion = '2.2.2';
+
+  /// Compare two semantic version strings (e.g. '2.2.3' vs '2.2.2')
+  /// Returns true if [remoteVersion] is strictly newer than [installedVersion]
+  static bool isVersionGreater(String remoteVersion, String installedVersion) {
+    try {
+      String clean(String v) =>
+          v.trim().toLowerCase().replaceAll(RegExp(r'^v'), '').split('+').first.trim();
+      List<int> parse(String v) =>
+          clean(v).split('.').map((e) => int.tryParse(e) ?? 0).toList();
+
+      final rParts = parse(remoteVersion);
+      final iParts = parse(installedVersion);
+
+      final maxLen = rParts.length > iParts.length ? rParts.length : iParts.length;
+      for (int i = 0; i < maxLen; i++) {
+        final r = i < rParts.length ? rParts[i] : 0;
+        final inst = i < iParts.length ? iParts[i] : 0;
+        if (r > inst) return true;
+        if (r < inst) return false;
+      }
+    } catch (e) {
+      log('Error comparing versions ($remoteVersion vs $installedVersion): $e');
+    }
+    return false;
+  }
+
   // Cached KLIPY API key
   static String? _cachedKlipyApiKey;
 

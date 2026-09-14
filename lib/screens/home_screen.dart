@@ -55,9 +55,8 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // 1. Check for App Update with Release Notes
       final updateInfo = await APIs.fetchAppUpdateInfo();
-      const currentVersion = '2.2.0';
 
-      if (updateInfo != null && updateInfo.latestVersion != currentVersion) {
+      if (updateInfo != null && APIs.isVersionGreater(updateInfo.latestVersion, APIs.appVersion)) {
         if (mounted) {
           WhatsNewDialog.show(context: context, updateInfo: updateInfo);
         }
